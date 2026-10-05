@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Let Vite serve bundled assets normally.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# React client-side routes must return the app shell.
+RewriteRule ^ index.html [L]

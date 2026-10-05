@@ -1,0 +1,6 @@
+{
+  "name": "LihaTech Document Generator",
+  "description": "Premium multi-document studio and automation suite for generating professional invoices, certificates, letters, and payslips.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

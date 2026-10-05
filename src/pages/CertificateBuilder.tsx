@@ -1,0 +1,641 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  ArrowLeft, 
+  Save, 
+  Award, 
+  Sparkles
+} from 'lucide-react';
+import { Certificate, CertificateLayout, CertificateLayoutElement, Course, CompanySettings } from '../types';
+import { generateCertificateId } from '../utils/idGenerator';
+import { 
+  getDefaultCompletionText, 
+  COMPLETION_PRESETS,
+  DEFAULT_PRESENTATION_TEXT,
+  PRESENTATION_PRESETS,
+  DEFAULT_DATE_LINE_TEXT,
+  DATE_LINE_PRESETS,
+  getFormattedDateLine,
+  CERTIFICATE_TYPE_PRESETS
+} from '../utils/certificateUtils';
+import CertificatePreview, { CertificateLayoutControls } from '../components/certificate/CertificatePreview';
+
+interface CertificateBuilderProps {
+  onBack: () => void;
+  courses: Course[];
+  existingCertificates: Certificate[];
+  settings: CompanySettings;
+  onSaveCertificate: (cert: Certificate) => void;
+  editingCertificate?: Certificate | null;
+  onSaveCourse?: (course: Course) => void;
+  onDeleteCourse?: (id: string) => void;
+  navigate: (path: string) => void;
+}
+
+export default function CertificateBuilder({
+  onBack,
+  courses,
+  existingCertificates,
+  settings,
+  onSaveCertificate,
+  editingCertificate = null,
+  navigate
+}: CertificateBuilderProps) {
+  
+  // Form Fields State
+  const [certificateId, setCertificateId] = useState('');
+  const [candidateName, setCandidateName] = useState('');
+  const [certificateType, setCertificateType] = useState('Course Completion');
+  const [presentationText, setPresentationText] = useState(DEFAULT_PRESENTATION_TEXT);
+  const [completionText, setCompletionText] = useState('has successfully completed the course');
+  const [programName, setProgramName] = useState('');
+  const [programFontSize, setProgramFontSize] = useState<number>(0);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [dateLineText, setDateLineText] = useState(DEFAULT_DATE_LINE_TEXT);
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [designTemplate, setDesignTemplate] = useState<'royal' | 'emerald' | 'academic' | 'modern-blue'>('royal');
+  const [partnerProfileId, setPartnerProfileId] = useState('');
+  const [certificateLayout, setCertificateLayout] = useState<CertificateLayout>({ offsets: {} });
+  const [layoutEditing, setLayoutEditing] = useState(false);
+  const [selectedLayoutElement, setSelectedLayoutElement] = useState<CertificateLayoutElement | null>(null);
+  const [layoutHistory, setLayoutHistory] = useState<CertificateLayout[]>([]);
+  const [layoutFuture, setLayoutFuture] = useState<CertificateLayout[]>([]);
+  const layoutRef = useRef(certificateLayout);
+
+  const updateCertificateLayout = (nextLayout: CertificateLayout) => {
+    const previousLayout = layoutRef.current;
+    if (JSON.stringify(previousLayout) === JSON.stringify(nextLayout)) return;
+    setLayoutHistory((history) => [...history, previousLayout].slice(-50));
+    setLayoutFuture([]);
+    layoutRef.current = nextLayout;
+    setCertificateLayout(nextLayout);
+  };
+
+  const undoLayout = () => {
+    setLayoutHistory((history) => {
+      if (!history.length) return history;
+      const previousLayout = history[history.length - 1];
+      setLayoutFuture((future) => [layoutRef.current, ...future].slice(0, 50));
+      layoutRef.current = previousLayout;
+      setCertificateLayout(previousLayout);
+      return history.slice(0, -1);
+    });
+  };
+
+  const redoLayout = () => {
+    setLayoutFuture((future) => {
+      if (!future.length) return future;
+      const nextLayout = future[0];
+      setLayoutHistory((history) => [...history, layoutRef.current].slice(-50));
+      layoutRef.current = nextLayout;
+      setCertificateLayout(nextLayout);
+      return future.slice(1);
+    });
+  };
+
+  useEffect(() => {
+    layoutRef.current = certificateLayout;
+  }, [certificateLayout]);
+
+  // Load editing certificate or generate defaults
+  useEffect(() => {
+    if (editingCertificate) {
+      setCertificateId(editingCertificate.certificateId);
+      setCandidateName(editingCertificate.candidateName);
+      setCertificateType(editingCertificate.certificateType);
+      setPresentationText(editingCertificate.presentationText || DEFAULT_PRESENTATION_TEXT);
+      setCompletionText(
+        editingCertificate.completionText || getDefaultCompletionText(editingCertificate.certificateType)
+      );
+      setProgramName(editingCertificate.programName);
+      setProgramFontSize(editingCertificate.programFontSize || 0);
+      setStartDate(editingCertificate.startDate || '');
+      setEndDate(editingCertificate.endDate || '');
+      setEventDate(editingCertificate.eventDate || '');
+      setDateLineText(
+        editingCertificate.dateLineText || 
+        (editingCertificate.eventDate ? (editingCertificate.eventDate.toLowerCase().startsWith('held') ? editingCertificate.eventDate : `held on ${editingCertificate.eventDate}`) : DEFAULT_DATE_LINE_TEXT)
+      );
+      setIssueDate(editingCertificate.issueDate);
+      setDesignTemplate(editingCertificate.designTemplate);
+      setPartnerProfileId(editingCertificate.partnerProfileId || '');
+      setCertificateLayout(editingCertificate.certificateLayout || { offsets: {} });
+    } else {
+      // Auto-generate unique ID
+      const existing = existingCertificates.map(c => c.certificateId);
+      setCertificateId(generateCertificateId(existing));
+      setPresentationText(DEFAULT_PRESENTATION_TEXT);
+      setDateLineText(DEFAULT_DATE_LINE_TEXT);
+      setProgramFontSize(0);
+      setCertificateLayout({ offsets: {} });
+      setPartnerProfileId(settings.certificatePartners?.[0]?.id || '');
+      
+      // Load standard defaults
+      if (courses.length > 0) {
+        const firstCourse = courses[0];
+        setProgramName(firstCourse.name);
+        setCertificateType(firstCourse.type);
+        setCompletionText(getDefaultCompletionText(firstCourse.type));
+      } else {
+        setProgramName('Masterclass on Machine Learning');
+        setCompletionText(getDefaultCompletionText('Course Completion'));
+      }
+    }
+  }, [editingCertificate, existingCertificates, courses, settings.certificatePartners]);
+
+  const selectedPartner = settings.certificatePartners?.find((partner) => partner.id === partnerProfileId);
+
+  const handleSaveCertificate = () => {
+    if (!candidateName.trim()) {
+      alert('Candidate Name is required!');
+      return;
+    }
+    if (!programName.trim()) {
+      alert('Program Name is required!');
+      return;
+    }
+
+    const savedCert: Certificate = {
+      id: editingCertificate ? editingCertificate.id : 'cert_' + Date.now(),
+      certificateId,
+      candidateName,
+      candidateEmail: '',
+      candidatePhone: '',
+      collegeName: '',
+      department: '',
+      enrollmentId: '',
+      certificateType,
+      presentationText: presentationText.trim() || DEFAULT_PRESENTATION_TEXT,
+      completionText: completionText.trim() || getDefaultCompletionText(certificateType),
+      programName,
+      programFontSize: programFontSize > 0 ? programFontSize : undefined,
+      startDate,
+      endDate,
+      eventDate,
+      dateLineText: dateLineText.trim() || DEFAULT_DATE_LINE_TEXT,
+      duration: '',
+      mode: 'Online',
+      location: '',
+      issueDate,
+      textTemplate: '',
+      designTemplate,
+      partnerProfileId: selectedPartner?.id,
+      partnerName: selectedPartner?.name,
+      partnerTagline: selectedPartner?.tagline,
+      partnerLogoUrl: selectedPartner?.logoUrl,
+      certificateLayout,
+      createdAt: editingCertificate ? editingCertificate.createdAt : new Date().toISOString()
+    };
+
+    onSaveCertificate(savedCert);
+  };
+
+  return (
+    <div className="space-y-8 pb-12 animate-fade-in">
+      
+      {/* Header controls bar */}
+      <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-850">
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={onBack}
+            className="p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl cursor-pointer transition-all"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <span className="text-xxs font-bold text-[#B8894D] uppercase tracking-widest block">LihaTech Certify</span>
+            <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">
+              {editingCertificate ? 'Edit Student Certificate' : 'Issue Professional Certificate'}
+            </h2>
+          </div>
+        </div>
+        
+        <button
+          type="button"
+          onClick={handleSaveCertificate}
+          className="flex items-center space-x-1.5 px-6 py-2.5 bg-[#6D1F2A] hover:bg-[#5A1922] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transition-all"
+        >
+          <Save className="h-4 w-4" />
+          <span>Save & Exit</span>
+        </button>
+      </div>
+
+      {/* Main Studio Editor Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(300px,370px)_minmax(0,1fr)] gap-5 items-start">
+        
+        {/* Left Form Board (2 cols) */}
+        <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7.5rem)] lg:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 rounded-2xl">
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 md:p-5 shadow-sm space-y-4">
+          <div className="border-b border-gray-100 dark:border-slate-850 pb-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-gray-900 dark:text-white mb-1 flex items-center gap-1.5">
+              <Award className="h-4.5 w-4.5 text-[#B8894D]" />
+                  Certificate content
+                </h3>
+                <p className="text-[10px] text-gray-400 font-semibold leading-4">Complete the content here. Use Design Mode beside the preview for moving, sizing, and formatting.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#078EDB]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#07547E] dark:text-sky-300">{editingCertificate ? 'Editing' : 'New'}</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/30 p-3.5 space-y-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#07547E] dark:text-sky-300">Recipient</p>
+              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Identity and partner details</p>
+            </div>
+
+          {/* Certificate ID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certificate ID *</label>
+            <input
+              type="text"
+              required
+              value={certificateId}
+              onChange={(e) => setCertificateId(e.target.value)}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-mono font-bold"
+            />
+          </div>
+
+          {/* Candidate Name */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Candidate Full Name *</label>
+            <input
+              type="text"
+              required
+              value={candidateName}
+              onChange={(e) => setCandidateName(e.target.value)}
+              placeholder="e.g. Shahid Himmat Shaikh"
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-semibold"
+            />
+          </div>
+          </div>
+
+          {/* Certification Category */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certification Category</label>
+            <select
+              value={certificateType}
+              onChange={(e) => {
+                const newType = e.target.value;
+                const oldDef = getDefaultCompletionText(certificateType);
+                setCertificateType(newType);
+                if (!completionText || completionText === oldDef) {
+                  setCompletionText(getDefaultCompletionText(newType));
+                }
+              }}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium"
+            >
+              {CERTIFICATE_TYPE_PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>{preset.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Partner institute */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Partner Institute (optional)</label>
+            <select
+              value={partnerProfileId}
+              onChange={(e) => setPartnerProfileId(e.target.value)}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium"
+            >
+              <option value="">LihaTech only</option>
+              {(settings.certificatePartners || []).map((partner) => (
+                <option key={partner.id} value={partner.id}>{partner.name}</option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-[10px] text-gray-400">Add reusable institute logos from Settings → Certificate Settings.</p>
+          </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 space-y-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#07547E] dark:text-sky-300">Wording</p>
+              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Choose a preset or write your own certificate language</p>
+            </div>
+
+          {/* Certify Statement / Preamble Line (THIS IS TO CERTIFY THAT) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                Certify Statement / Preamble Line *
+              </label>
+              <button
+                type="button"
+                onClick={() => setPresentationText(DEFAULT_PRESENTATION_TEXT)}
+                className="text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 font-bold cursor-pointer hover:underline"
+              >
+                Reset Default
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              value={presentationText}
+              onChange={(e) => setPresentationText(e.target.value)}
+              placeholder="e.g. THIS IS TO CERTIFY THAT, PROUDLY PRESENTED TO"
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-medium"
+            />
+            {/* Presets */}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[9px] text-gray-400 uppercase font-bold mr-1">Presets:</span>
+              {PRESENTATION_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setPresentationText(preset.text)}
+                  className={`px-2 py-0.5 text-[10px] rounded-md border transition-all cursor-pointer ${
+                    presentationText === preset.text
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
+                      : 'bg-gray-100 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                  title={preset.text}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Completion Statement / Recognition Line */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                Completion Statement / Recognition Line *
+              </label>
+              <button
+                type="button"
+                onClick={() => setCompletionText(getDefaultCompletionText(certificateType))}
+                className="text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 font-bold cursor-pointer hover:underline"
+              >
+                Reset Default
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              value={completionText}
+              onChange={(e) => setCompletionText(e.target.value)}
+              placeholder="e.g. has successfully completed the course"
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-medium"
+            />
+            {/* Presets */}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[9px] text-gray-400 uppercase font-bold mr-1">Presets:</span>
+              {COMPLETION_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setCompletionText(preset.text)}
+                  className={`px-2 py-0.5 text-[10px] rounded-md border transition-all cursor-pointer ${
+                    completionText === preset.text
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
+                      : 'bg-gray-100 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                  title={preset.text}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          </div>
+
+          <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/30 p-3.5 space-y-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#07547E] dark:text-sky-300">Schedule & design</p>
+              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Program, dates, and the visual template</p>
+            </div>
+
+          {/* Program Name */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Program Name *</label>
+            <input
+              type="text"
+              required
+              value={programName}
+              onChange={(e) => setProgramName(e.target.value)}
+              placeholder="e.g. Mock Interview & Technical Assessment at DYPCET, Kolhapur, in association with the CSE (Data Science) Department."
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-semibold"
+            />
+          </div>
+
+          {/* Design Template Selection */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Design Template</label>
+            <select
+              value={designTemplate}
+              onChange={(e) => setDesignTemplate(e.target.value as any)}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium"
+            >
+              <option value="royal">Royal Burgundy</option>
+              <option value="emerald">Emerald Green</option>
+              <option value="academic">Minimal Teal</option>
+              <option value="modern-blue">Modern Blue</option>
+            </select>
+          </div>
+
+          {/* Dates Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2 text-xs outline-none text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2 text-xs outline-none text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          {/* Event Schedule / Date Line ("held in May 2026") */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                Event Schedule / Date Line (e.g. held in May 2026) *
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateLineText(DEFAULT_DATE_LINE_TEXT);
+                  setEventDate('');
+                }}
+                className="text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 font-bold cursor-pointer hover:underline"
+              >
+                Reset Default
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              value={dateLineText}
+              onChange={(e) => {
+                setDateLineText(e.target.value);
+                setEventDate(e.target.value);
+              }}
+              placeholder="e.g. held in May 2026, held on 8 & 9 May 2026"
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-medium"
+            />
+            {/* Presets */}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[9px] text-gray-400 uppercase font-bold mr-1">Presets:</span>
+              {DATE_LINE_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setDateLineText(preset.text);
+                    setEventDate(preset.text);
+                  }}
+                  className={`px-2 py-0.5 text-[10px] rounded-md border transition-all cursor-pointer ${
+                    dateLineText === preset.text
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
+                      : 'bg-gray-100 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                  title={preset.text}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date of Issue */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date of Issue</label>
+            <input
+              type="date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2 text-xs outline-none text-gray-900 dark:text-white"
+            />
+          </div>
+
+          </div>
+
+          <div className="pt-4 border-t border-gray-100 dark:border-slate-850 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveCertificate}
+              className="flex items-center space-x-1.5 px-6 py-2.5 bg-[#6D1F2A] hover:bg-[#5A1922] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transition-all"
+            >
+              <Save className="h-4 w-4" />
+              <span>Save & Exit</span>
+            </button>
+          </div>
+        </div>
+        </div>
+
+        {/* Right Preview Column (3 cols) */}
+        <div className="min-w-0 lg:sticky lg:top-24 space-y-6">
+          <div className="flex flex-col xl:flex-row items-stretch gap-4">
+            <div className="min-w-0 flex-1 rounded-2xl border border-gray-200 dark:border-slate-880 bg-white dark:bg-slate-900 p-4 shadow-sm">
+              <h3 className="font-extrabold text-gray-900 dark:text-white text-sm mb-4 border-b border-gray-50 dark:border-slate-850 pb-3 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-amber-500" />
+                Live Interactive Preview
+              </h3>
+
+              {/* Live Preview Embed */}
+              <div className="border border-gray-100 dark:border-slate-850 rounded-2xl p-3 bg-slate-50 dark:bg-slate-950/40">
+                <CertificatePreview 
+                  certificate={{
+                    id: 'preview',
+                    certificateId,
+                    candidateName,
+                    candidateEmail: '',
+                    candidatePhone: '',
+                    collegeName: '',
+                    department: '',
+                    enrollmentId: '',
+                    certificateType,
+                    presentationText: presentationText.trim() || DEFAULT_PRESENTATION_TEXT,
+                    completionText: completionText.trim() || getDefaultCompletionText(certificateType),
+                    programName,
+                    programFontSize: programFontSize > 0 ? programFontSize : undefined,
+                    startDate,
+                    endDate,
+                    eventDate,
+                    dateLineText: dateLineText.trim() || DEFAULT_DATE_LINE_TEXT,
+                    duration: '',
+                    mode: 'Online',
+                    location: '',
+                    issueDate,
+                    textTemplate: '',
+                    designTemplate,
+                    partnerProfileId: selectedPartner?.id,
+                    partnerName: selectedPartner?.name,
+                    partnerTagline: selectedPartner?.tagline,
+                    partnerLogoUrl: selectedPartner?.logoUrl,
+                    certificateLayout,
+                    createdAt: new Date().toISOString()
+                  }} 
+                  settings={settings}
+                  showActions={false}
+                  enableLayoutEditing
+                  layoutEditing={layoutEditing}
+                  onLayoutEditingChange={setLayoutEditing}
+                  selectedLayoutElement={selectedLayoutElement}
+                  onSelectedLayoutElementChange={setSelectedLayoutElement}
+                  showLayoutControls={false}
+                  onUpdateCertificate={(updatedCertificate) => updateCertificateLayout(updatedCertificate.certificateLayout || { offsets: {} })}
+                />
+              </div>
+            </div>
+
+            <CertificateLayoutControls
+              certificateLayout={certificateLayout}
+              selectedElement={selectedLayoutElement}
+              onSelectElement={setSelectedLayoutElement}
+              onUpdateLayout={updateCertificateLayout}
+              onResetLayout={() => {
+                setSelectedLayoutElement(null);
+                updateCertificateLayout({ offsets: {}, sizes: {}, styles: {} });
+              }}
+              onUndo={undoLayout}
+              onRedo={redoLayout}
+              canUndo={layoutHistory.length > 0}
+              canRedo={layoutFuture.length > 0}
+              disabled={!layoutEditing}
+            />
+          </div>
+
+          {/* Informational Widget */}
+          <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-xxs text-gray-500 space-y-2.5">
+            <div className="flex items-center space-x-1.5 text-amber-600 font-bold">
+              <Sparkles className="h-4 w-4" />
+              <span>Bulk Generation Workspace Available</span>
+            </div>
+            <p className="leading-relaxed font-medium">
+              Have multiple students to certify? Do not write them one-by-one. Navigate to the Bulk Studio to upload your student list as an Excel file and generate high-resolution PDFs automatically in seconds.
+            </p>
+            <button
+              onClick={() => {
+                if (confirm('Navigate to bulk import? Unsaved builder changes may be lost.')) {
+                  navigate('/certificate/bulk');
+                }
+              }}
+              className="w-full text-center py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold rounded-lg cursor-pointer transition-colors uppercase tracking-wider text-[10px]"
+            >
+              Go to Bulk Studio
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
+}

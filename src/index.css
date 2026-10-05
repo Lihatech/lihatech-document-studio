@@ -1,0 +1,233 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Alex+Brush&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, Cambria, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-script: "Alex Brush", cursive;
+  --font-space: "Space Grotesk", sans-serif;
+  --font-display: "Archivo", "Inter", sans-serif;
+  --color-liha-navy: #062b4b;
+  --color-liha-blue: #078edb;
+  --color-liha-cyan: #00b9e8;
+  --color-liha-sky: #45d8f5;
+}
+
+:root {
+  --liha-navy: #062b4b;
+  --liha-navy-deep: #041f37;
+  --liha-navy-soft: #174966;
+  --liha-blue: #078edb;
+  --liha-blue-dark: #07547e;
+  --liha-cyan: #00b9e8;
+  --liha-sky: #45d8f5;
+  --liha-canvas: #f3f8fb;
+  --liha-surface: #ffffff;
+  --liha-surface-soft: #e8f3f8;
+  --liha-border: #c6dce6;
+  --liha-ink: #062b4b;
+  --liha-muted: #476579;
+}
+
+body {
+  background: var(--liha-canvas);
+  color: var(--liha-ink);
+}
+
+/* LihaTech brand system for the Document Studio UI. Certificate artwork keeps
+   its own document-specific colors and inline styles. */
+#app-shell,
+#login-shell {
+  --brand-primary: var(--liha-blue);
+  --brand-primary-dark: var(--liha-navy);
+  --brand-accent: var(--liha-cyan);
+  --brand-ink: var(--liha-ink);
+  --brand-muted: var(--liha-muted);
+  --brand-contrast: var(--liha-navy);
+}
+
+#app-shell {
+  background: var(--liha-canvas) !important;
+  color: var(--brand-ink);
+}
+
+#login-shell {
+  background: linear-gradient(135deg, var(--liha-canvas), #ffffff 52%, #e8f3f8) !important;
+}
+
+#app-shell .bg-white,
+#login-shell .bg-white {
+  background-color: var(--liha-surface) !important;
+}
+
+#app-shell .bg-gray-50,
+#app-shell .bg-gray-50\/50,
+#app-shell .bg-gray-100,
+#app-shell .bg-slate-50,
+#app-shell .bg-slate-100,
+#login-shell .bg-gray-50\/50,
+#login-shell .bg-slate-50 {
+  background-color: var(--liha-surface-soft) !important;
+}
+
+#app-shell .border-gray-50,
+#app-shell .border-gray-100,
+#app-shell .border-gray-200,
+#app-shell .border-gray-250,
+#app-shell .border-slate-100,
+#app-shell .border-slate-200,
+#app-shell .border-slate-300,
+#app-shell .border-slate-400,
+#app-shell .border-slate-700,
+#app-shell .border-slate-800,
+#app-shell .border-slate-850,
+#login-shell .border-gray-200,
+#login-shell .border-slate-800 {
+  border-color: var(--liha-border) !important;
+}
+
+#app-shell .text-gray-900,
+#app-shell .text-gray-800,
+#app-shell .text-slate-950,
+#app-shell .text-slate-900,
+#app-shell .text-slate-800,
+#login-shell .text-gray-900 {
+  color: var(--brand-ink) !important;
+}
+
+#app-shell .text-gray-700,
+#app-shell .text-gray-600,
+#app-shell .text-slate-700,
+#app-shell .text-slate-600,
+#login-shell .text-gray-700 {
+  color: var(--liha-navy-soft) !important;
+}
+
+#app-shell .text-gray-500,
+#app-shell .text-gray-400,
+#app-shell .text-slate-500,
+#app-shell .text-slate-400,
+#login-shell .text-gray-500,
+#login-shell .text-gray-400 {
+  color: var(--brand-muted) !important;
+}
+
+/* Blue owns primary actions; the remaining accents keep their semantic roles
+   so the interface has contrast instead of reading as one monochrome surface. */
+#app-shell [class~="bg-indigo-700"] {
+  background-color: var(--brand-primary) !important;
+}
+
+#app-shell [class~="hover:bg-indigo-800"]:hover {
+  background-color: var(--brand-primary-dark) !important;
+}
+
+#app-shell .text-indigo-600,
+#app-shell .text-indigo-700,
+#app-shell .text-indigo-400 {
+  color: var(--brand-primary) !important;
+}
+
+#app-shell .bg-indigo-500\/10,
+#app-shell .bg-indigo-500\/10 {
+  background-color: rgba(7, 142, 219, 0.09) !important;
+}
+
+#app-shell .text-white,
+#login-shell .text-white {
+  --tw-text-opacity: 1;
+}
+
+#app-shell button:focus-visible,
+#login-shell button:focus-visible,
+#app-shell input:focus-visible,
+#login-shell input:focus-visible,
+#app-shell select:focus-visible,
+#login-shell select:focus-visible {
+  outline: 3px solid rgba(0, 185, 232, 0.38);
+  outline-offset: 2px;
+}
+
+#app-shell .bg-slate-900,
+#app-shell .bg-slate-950,
+#app-shell .bg-slate-800,
+#login-shell .bg-slate-900,
+#login-shell .bg-slate-950 {
+  background-color: var(--liha-navy-deep) !important;
+}
+
+#app-shell .text-slate-900,
+#app-shell .text-gray-900,
+#app-shell .text-gray-800,
+#app-shell .text-slate-800 {
+  color: var(--brand-contrast) !important;
+}
+
+.dark #app-shell,
+.dark #login-shell {
+  background: var(--liha-navy-deep) !important;
+  color: #eafcff;
+}
+
+.dark #app-shell .dark\:bg-slate-900,
+.dark #app-shell .dark\:bg-slate-950,
+.dark #app-shell .dark\:bg-slate-800,
+.dark #login-shell .dark\:bg-slate-900,
+.dark #login-shell .dark\:bg-slate-950 {
+  background-color: #0a3553 !important;
+}
+
+.dark #app-shell .dark\:text-white,
+.dark #login-shell .dark\:text-white {
+  color: #f4fdff !important;
+}
+
+.dark #app-shell .dark\:text-gray-300,
+.dark #app-shell .dark\:text-gray-400,
+.dark #app-shell .dark\:text-slate-300,
+.dark #app-shell .dark\:text-slate-400 {
+  color: #a9d4e3 !important;
+}
+
+.dark #app-shell .dark\:border-slate-700,
+.dark #app-shell .dark\:border-slate-800,
+.dark #app-shell .dark\:border-slate-850,
+.dark #login-shell .dark\:border-slate-800 {
+  border-color: #1a5573 !important;
+}
+
+/* Custom CSS micro-animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-zoom-in {
+  animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Custom dark mode utility helpers */
+.dark .dark\:border-slate-850 {
+  border-color: #1e293b;
+}
+
+/* Hide print elements during standard PDF rendering */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
