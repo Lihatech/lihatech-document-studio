@@ -7,7 +7,6 @@ import {
   Save, 
   CheckCircle,
   FileImage,
-  Lock,
   Award,
   Shield,
   Palette,
@@ -25,17 +24,9 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
   // Tab state
   const [activeTab, setActiveTab] = useState<'user' | 'invoice' | 'certificate'>('user');
 
-  // 1. User Settings State
-  const [userUsername, setUserUsername] = useState(settings.userUsername || 'admin');
-  const [userPassword, setUserPassword] = useState(settings.userPassword || 'admin123');
+  // 1. Company Contact State
   const [email, setEmail] = useState(settings.email);
   const [phone, setPhone] = useState(settings.phone);
-
-  // Password reset specific local states
-  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
-  const [newPasswordInput, setNewPasswordInput] = useState('');
-  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
-  const [passwordResetMessage, setPasswordResetMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // 2. Invoice Settings State
   const [name, setName] = useState(settings.name);
@@ -123,67 +114,6 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
     ]);
   };
 
-  const handlePasswordResetSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (currentPasswordInput !== userPassword) {
-      setPasswordResetMessage({ text: 'Current password is incorrect!', type: 'error' });
-      return;
-    }
-    if (!newPasswordInput) {
-      setPasswordResetMessage({ text: 'Please enter a new password!', type: 'error' });
-      return;
-    }
-    if (newPasswordInput !== confirmPasswordInput) {
-      setPasswordResetMessage({ text: 'New passwords do not match!', type: 'error' });
-      return;
-    }
-
-    setUserPassword(newPasswordInput);
-    setCurrentPasswordInput('');
-    setNewPasswordInput('');
-    setConfirmPasswordInput('');
-    setPasswordResetMessage({ text: 'Password updated successfully!', type: 'success' });
-    
-    // Auto-save the updated password immediately with current form details
-    const termsArray = defaultTermsText
-      .split('\n')
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
-
-    const updated: CompanySettings = {
-      name: name.trim(),
-      tagline: tagline.trim(),
-      address: address.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      website: website.trim(),
-      gstNumber: gstNumber.trim(),
-      panNumber: panNumber.trim(),
-      logoUrl,
-      signatureUrl,
-      stampUrl,
-      directorName: directorName.trim(),
-      directorDesignation: directorDesignation.trim(),
-      bankName: bankName.trim(),
-      accountHolder: accountHolder.trim(),
-      accountNumber: accountNumber.trim(),
-      ifscCode: ifscCode.trim(),
-      upiId: upiId.trim(),
-      qrCodeUrl: settings.qrCodeUrl || '',
-      defaultGstPercent,
-      defaultTerms: termsArray,
-      certTemplate: certTemplate,
-      defaultCertText: defaultCertText.trim(),
-      certificatePartners,
-      userPassword: newPasswordInput,
-      userUsername: userUsername.trim()
-    };
-
-    onSaveSettings(updated);
-    setSavedBanner(true);
-    setTimeout(() => setSavedBanner(false), 3000);
-  };
-
   const handleSaveAll = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -216,9 +146,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       defaultTerms: termsArray,
       certTemplate: certTemplate,
       defaultCertText: defaultCertText.trim(),
-      certificatePartners,
-      userPassword: userPassword,
-      userUsername: userUsername.trim()
+      certificatePartners
     };
 
     onSaveSettings(updated);
@@ -255,7 +183,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
           }`}
         >
           <User className="h-4 w-4" />
-          <span>User & Security Settings</span>
+          <span>Company Contact Details</span>
         </button>
         <button
           onClick={() => setActiveTab('invoice')}
@@ -283,30 +211,18 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
       <div className="space-y-6">
         
-        {/* TAB 1: USER SETTINGS & PASSWORD RESET */}
+        {/* TAB 1: COMPANY CONTACT DETAILS */}
         {activeTab === 'user' && (
           <div className="space-y-6 animate-fade-in" id="user-settings-tab">
             {/* User Profile Details */}
             <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 md:p-8 space-y-6 shadow-xs">
               <div className="flex items-center space-x-2 text-amber-600 border-b border-gray-50 dark:border-slate-850 pb-3">
                 <User className="h-5 w-5" />
-                <h3 className="font-extrabold text-gray-900 dark:text-white text-sm uppercase tracking-wider">User Profile Details</h3>
+                <h3 className="font-extrabold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Company Contact Details</h3>
               </div>
 
               <form onSubmit={handleSaveAll} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Username Account *</label>
-                    <input
-                      type="text"
-                      required
-                      value={userUsername}
-                      onChange={(e) => setUserUsername(e.target.value)}
-                      placeholder="e.g. administrator"
-                      className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-semibold outline-none"
-                    />
-                  </div>
-
                   <div>
                     <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Primary Contact Email</label>
                     <input
@@ -338,74 +254,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                     className="flex items-center space-x-2 px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-all"
                   >
                     <Save className="h-4 w-4" />
-                    <span>Save Profile Details</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Account Password Reset (Simulated Security) */}
-            <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 md:p-8 space-y-6 shadow-xs">
-              <div className="flex items-center space-x-2 text-amber-600 border-b border-gray-50 dark:border-slate-850 pb-3">
-                <Lock className="h-5 w-5" />
-                <h3 className="font-extrabold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Account Security & Password Reset</h3>
-              </div>
-
-              <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
-                {passwordResetMessage && (
-                  <div className={`p-3 rounded-xl text-xs font-bold border ${
-                    passwordResetMessage.type === 'success' 
-                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
-                      : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                  }`}>
-                    {passwordResetMessage.text}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Current Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={currentPasswordInput}
-                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                      placeholder="••••••••"
-                      className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">New Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={newPasswordInput}
-                      onChange={(e) => setNewPasswordInput(e.target.value)}
-                      placeholder="••••••••"
-                      className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Confirm New Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={confirmPasswordInput}
-                      onChange={(e) => setConfirmPasswordInput(e.target.value)}
-                      placeholder="••••••••"
-                      className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-3">
-                  <span className="text-xxs text-gray-400 italic">Default fallback password is <strong className="font-bold">admin123</strong></span>
-                  <button
-                    type="submit"
-                    className="flex items-center space-x-2 px-6 py-3 bg-rose-700 hover:bg-rose-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-all"
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span>Update Password</span>
+                    <span>Save Contact Details</span>
                   </button>
                 </div>
               </form>

@@ -16,6 +16,7 @@ import {
 } from './types';
 import {
   firebaseConfigured,
+  isAllowedCompanyUser,
   loadCompanyData,
   subscribeToCompanyAuth,
   signOutCompany
@@ -48,6 +49,7 @@ export default function App() {
     return localStorage.getItem('lt_is_logged_in') === 'true';
   });
   const [authReady, setAuthReady] = useState(!firebaseConfigured);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
 
   // Active Routing Path State (URL synchronized)
   const [path, setPath] = useState(() => {
@@ -80,9 +82,21 @@ export default function App() {
       if (!user) {
         localStorage.removeItem('lt_is_logged_in');
         setIsLoggedIn(false);
+        setAuthEmail(null);
         setAuthReady(true);
         return;
       }
+
+      if (!isAllowedCompanyUser(user)) {
+        await signOutCompany();
+        localStorage.removeItem('lt_is_logged_in');
+        setIsLoggedIn(false);
+        setAuthEmail(null);
+        setAuthReady(true);
+        return;
+      }
+
+      setAuthEmail(user.email);
 
       const fallbackData = getStoredData() as Awaited<ReturnType<typeof loadCompanyData>>;
       try {
@@ -149,6 +163,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('lt_is_logged_in');
     setIsLoggedIn(false);
+    setAuthEmail(null);
     if (firebaseConfigured) void signOutCompany();
     navigate('/');
   };
@@ -367,6 +382,7 @@ export default function App() {
         path={path}
         navigate={navigate}
         settings={db.settings}
+        userEmail={authEmail}
         darkMode={theme === 'dark'}
         setDarkMode={(dark) => setTheme(dark ? 'dark' : 'light')}
         onLogout={handleLogout}

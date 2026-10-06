@@ -60,7 +60,9 @@ export const signInWithCompanyGoogle = async () => {
   const credential = await signInWithPopup(auth, new GoogleAuthProvider());
   if (!isAllowedCompanyUser(credential.user)) {
     await signOut(auth);
-    throw new Error('This Google account is not approved for LihaTech Document Studio.');
+    const error = new Error('This Google account is not approved for LihaTech Document Studio.');
+    error.name = 'CompanyAccountNotAllowedError';
+    throw error;
   }
   return credential.user;
 };

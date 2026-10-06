@@ -1,235 +1,146 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { firebaseConfigured, signInWithCompanyGoogle } from '../lib/firebase';
+
+const LOGIN_ATTEMPTS_KEY = 'lt_company_login_attempts';
+const MAX_LOGIN_ATTEMPTS = 2;
 
 interface LoginProps {
   onLoginSuccess: () => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    return Number.parseInt(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '0', 10) || 0;
+  });
+
+  const isBlocked = failedAttempts >= MAX_LOGIN_ATTEMPTS;
 
   const handleCompanyLogin = async () => {
+    if (isBlocked) return;
+
     setError('');
     setIsLoading(true);
+
     try {
       await signInWithCompanyGoogle();
+      localStorage.removeItem(LOGIN_ATTEMPTS_KEY);
       onLoginSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Company sign-in failed. Please try again.');
+      if (err instanceof Error && err.name === 'CompanyAccountNotAllowedError') {
+        const nextAttempts = Math.min(failedAttempts + 1, MAX_LOGIN_ATTEMPTS);
+        localStorage.setItem(LOGIN_ATTEMPTS_KEY, String(nextAttempts));
+        setFailedAttempts(nextAttempts);
+        setError(
+          nextAttempts >= MAX_LOGIN_ATTEMPTS
+            ? ''
+            : `This account is not approved. Only the authenticated LihaTech company email can sign in. ${MAX_LOGIN_ATTEMPTS - nextAttempts} attempt remaining.`,
+        );
+      } else {
+        setError(err instanceof Error ? err.message : 'Company sign-in failed. Please try again.');
+      }
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    // Retrieve changed password if saved in settings, otherwise use default "admin123"
-    const savedPassword = localStorage.getItem('lt_admin_password') || 'admin123';
-    const targetEmail = 'admin@lihatech.com';
-
-    setTimeout(() => {
-      if (email.trim().toLowerCase() === targetEmail && password === savedPassword) {
-        localStorage.setItem('lt_is_logged_in', 'true');
-        onLoginSuccess();
-      } else {
-        setError('Invalid administrator email or password. Please try again.');
-        setIsLoading(false);
-      }
-    }, 800);
-  };
-
   return (
-    <div id="login-shell" className="min-h-screen flex bg-slate-50 dark:bg-slate-950 font-sans">
-      
-      {/* Left Column: Brand Column */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-[#041F37] via-[#062B4B] to-[#07547E] overflow-hidden items-center justify-center p-12">
-        {/* Animated ambient lights */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#00B9E8]/15 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-[#45D8F5]/15 rounded-full blur-3xl animate-pulse delay-700" />
-        
-        {/* Grid patterns */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,%230f172a_1px,transparent_1px),linear-gradient(to_bottom,%230f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,%23000_70%,transparent_100%)] opacity-40" />
+    <main className="relative min-h-screen overflow-hidden bg-white px-5 py-10 font-sans text-[#062b4b] sm:px-6">
+      <div aria-hidden="true" className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-[#078edb]/10 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -right-40 bottom-1/4 h-96 w-96 rounded-full bg-[#45d8f5]/12 blur-3xl" />
 
-        <div className="relative max-w-lg text-center flex flex-col items-center">
-          {/* Logo Cap Visual */}
-          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 shadow-xl shadow-amber-500/20">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-9 h-9 text-white">
-              <path d="M2 10 L12 5 L22 10 L12 15 Z" />
-              <path d="M6 12 L6 18 C6 20 12 21 12 21 C12 21 18 20 18 18 L18 12" />
-              <path d="M12 15 L12 22" />
-            </svg>
-          </div>
-          
-          <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">
-            LihaTech
-          </h1>
-          <p className="text-xs tracking-[0.45em] text-amber-500 font-bold uppercase mb-8">
-            Plan . Practice . Patience
-          </p>
-
-          <blockquote className="border-l-4 border-amber-500/40 pl-4 py-1 text-left mb-8">
-            <p className="text-sm font-medium text-slate-300 italic leading-relaxed">
-              "We provide custom software solutions, website engineering, workflow automations, GenAI integration pipelines, and practical internship/course pathways for modern technical talent."
-            </p>
-          </blockquote>
-
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-5 w-full text-left">
-            <div className="flex items-center space-x-3 mb-3">
-              <ShieldCheck className="h-5 w-5 text-teal-400" />
-              <h4 className="text-sm font-bold text-white">Document Studio Suite</h4>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Automated system for issuing certified invoice records, GST audits, internship transcripts, completion credentials, and bulk-generated event certificates for universities.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Column: Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 md:p-20 bg-white dark:bg-slate-900 transition-colors duration-300">
-        <div className="w-full max-w-md">
-          {/* Logo on mobile only */}
-          <div className="lg:hidden flex flex-col items-center text-center mb-8">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#078EDB] to-[#07547E] flex items-center justify-center shadow-lg mb-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-white">
-                <path d="M2 10 L12 5 L22 10 L12 15 Z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">LihaTech</h2>
-            <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold tracking-widest uppercase">
-              Plan . Practice . Patience
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-sm items-center justify-center">
+        <div className="w-full">
+          <div className="mb-8 text-center">
+            <img
+              src="/lihatech-logo-official.png"
+              alt="LihaTech"
+              className="mx-auto h-20 w-20 object-contain"
+            />
+            <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-[#062b4b]">
+              LihaTech
+            </h1>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#078edb]">
+              Document Studio
             </p>
           </div>
 
-          <div className="mb-6">
-            <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-              Administrative Portal
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Sign in to manage company billing, client registries, and generate academic completion certificates.
-            </p>
-          </div>
-
-          {error && (
-            <div className="p-4 mb-5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-950/40 text-xs text-rose-700 dark:text-rose-400 font-medium leading-relaxed">
-              {error}
-            </div>
-          )}
-
-          {firebaseConfigured ? (
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={handleCompanyLogin}
-                disabled={isLoading}
-                className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-800 dark:text-white font-semibold text-sm shadow-sm hover:shadow-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-55 transition-all"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                    <span>Signing in securely...</span>
-                  </>
-                ) : (
-                  <span>Continue with LihaTech Google Account</span>
-                )}
-              </button>
-              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
-                Only approved company Google accounts can access this studio.
+          <section className="rounded-2xl border border-[#d7e8ee] bg-white p-7 shadow-[0_24px_70px_rgba(6,43,75,0.14),0_4px_18px_rgba(7,142,219,0.08)] sm:p-8">
+            <div className="mb-7">
+              <h2 className="text-xl font-bold text-[#062b4b]">Sign in</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Use your approved LihaTech Google account to continue.
               </p>
             </div>
-          ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative rounded-xl shadow-xs">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                  <Mail className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                </div>
-                <input
-                  type="email"
-                  id="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@lihatech.com"
-                  className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950 py-3.5 pl-10 pr-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-amber-500 outline-none transition-all duration-200"
-                />
-              </div>
-            </div>
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
-                Access Password
-              </label>
-              <div className="relative rounded-xl shadow-xs">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                  <Lock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950 py-3.5 pl-10 pr-10 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-amber-500 outline-none transition-all duration-200"
-                />
+            {error && (
+              <div
+                className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+
+            {firebaseConfigured ? (
+              <>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                  onClick={handleCompanyLogin}
+                  disabled={isLoading || isBlocked}
+                  className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#078edb] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#07547e] focus:outline-none focus:ring-2 focus:ring-[#078edb] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Continue with Google'
+                  )}
                 </button>
+                <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+                  Only the authorized company email can access this studio.
+                </p>
+              </>
+            ) : (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700" role="alert">
+                Firebase authentication is not configured for this deployment.
               </div>
-            </div>
+            )}
+          </section>
 
-            {/* Quick Helper Credentials Info Box */}
-            <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/10 text-xxs text-amber-700 dark:text-amber-400 font-medium space-y-1">
-              <p className="font-bold">🔑 Demo Access Credentials:</p>
-              <p>Email: <span className="font-mono">admin@lihatech.com</span></p>
-              <p>Password: <span className="font-mono">admin123</span></p>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#078EDB] to-[#07547E] hover:from-[#07547E] hover:to-[#062B4B] text-white font-semibold text-sm shadow-md cursor-pointer hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#00B9E8] focus:ring-offset-2 disabled:opacity-55 transition-all"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  <span>Verifying Credentials...</span>
-                </>
-              ) : (
-                <span>Access Document Studio</span>
-              )}
-            </button>
-            
-          </form>
-          )}
-
-          {/* Copyright block */}
-          <p className="text-center text-xxs text-gray-400 dark:text-gray-500 mt-12">
-            &copy; {new Date().getFullYear()} LihaTech Solutions. All rights reserved.<br />
-            Security Shield Authorized • Kolhapur Office
+          <p className="mt-6 text-center text-xs text-slate-400">
+            © {new Date().getFullYear()} LihaTech Solutions
           </p>
         </div>
       </div>
 
-    </div>
+      {isBlocked && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#062b4b]/70 p-5 backdrop-blur-sm"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="blocked-login-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-rose-200 bg-white p-7 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <ShieldCheck className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <h3 id="blocked-login-title" className="text-lg font-extrabold text-[#062b4b]">
+              Sign-in blocked
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Only the authenticated LihaTech company email can access Document Studio.
+            </p>
+            <p className="mt-4 text-xs font-semibold leading-5 text-rose-600">
+              Two unsuccessful attempts were detected in this browser. Please use the approved account or contact LihaTech support.
+            </p>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }

@@ -23,8 +23,6 @@ export interface CompanySettings {
   certTemplate: 'royal' | 'emerald' | 'academic' | 'modern-blue';
   defaultCertText?: string;
   certificatePartners?: CertificatePartnerProfile[];
-  userPassword?: string;
-  userUsername?: string;
 }
 
 export interface CertificatePartnerProfile {

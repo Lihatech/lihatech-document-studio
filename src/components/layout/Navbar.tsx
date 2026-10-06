@@ -17,6 +17,7 @@ interface NavbarProps {
   path: string;
   navigate: (toPath: string) => void;
   settings: CompanySettings;
+  userEmail: string | null;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
   onLogout: () => void;
@@ -26,6 +27,7 @@ export default function Navbar({
   path, 
   navigate, 
   settings, 
+  userEmail,
   darkMode, 
   setDarkMode, 
   onLogout 
@@ -108,8 +110,8 @@ export default function Navbar({
             {/* Profile Dropdown */}
             <div className="flex items-center space-x-3 border-l border-gray-200 dark:border-slate-800 pl-4">
               <div className="hidden sm:flex flex-col items-end">
-                <span className="text-xs font-semibold text-gray-900 dark:text-white">Admin Portal</span>
-                <span className="text-xxs text-gray-500 dark:text-gray-400" style={{ fontSize: '10px' }}>admin@lihatech.com</span>
+                <span className="text-xs font-semibold text-gray-900 dark:text-white">LihaTech Studio</span>
+                <span className="text-xxs text-gray-500 dark:text-gray-400" style={{ fontSize: '10px' }}>{userEmail || 'Authenticated account'}</span>
               </div>
               <button
                 onClick={onLogout}

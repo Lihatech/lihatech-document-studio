@@ -101,9 +101,7 @@ const INITIAL_COMPANY_SETTINGS: CompanySettings = {
   ],
   certTemplate: 'royal',
   certificatePartners: [],
-  defaultCertText: 'The participant has demonstrated dedication, active participation and successfully completed all the hands-on sessions.',
-  userPassword: 'admin123',
-  userUsername: 'admin'
+  defaultCertText: 'The participant has demonstrated dedication, active participation and successfully completed all the hands-on sessions.'
 };
 
 const INITIAL_CLIENTS: Client[] = [
