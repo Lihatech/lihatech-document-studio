@@ -16,6 +16,8 @@ import {
 } from './types';
 import {
   firebaseConfigured,
+  isAllowedCompanyUser,
+  COMPANY_ACCESS_WARNING,
   subscribeToCompanyAuth,
   signOutCompany
 } from './lib/firebase';
@@ -107,6 +109,7 @@ export default function App() {
       }
 
       try {
+        if (!isAllowedCompanyUser(user)) throw new Error(COMPANY_ACCESS_WARNING);
         try {
           await ensureSupabaseAdmin(user.uid);
         } catch (profileError) {
