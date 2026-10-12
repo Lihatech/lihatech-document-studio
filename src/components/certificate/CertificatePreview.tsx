@@ -39,9 +39,8 @@ import {
   getProgramFontSizeStyle,
   PROGRAM_FONT_SIZE_PRESETS
 } from '../../utils/certificateUtils';
-import html2canvas from '../../lib/html2canvas-patch';
-import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
+import { captureCertificate, createCertificatePdf } from '../../utils/certificateExport';
 import royalBg from '../../../Certificate BG.png';
 import emeraldBg from '../../../Certificate BG Green.png';
 import academicBg from '../../../Certificate BG Teal.png';
@@ -598,47 +597,8 @@ export default function CertificatePreview({
         throw new Error('Certificate render element not found');
       }
 
-      // Wait for any images within the element to load completely
-      const images = targetElement.querySelectorAll('img');
-      const imagePromises = Array.from(images).map((imgElement) => {
-        const img = imgElement as HTMLImageElement;
-        if (img.complete) return Promise.resolve();
-        return new Promise<void>((resolve) => {
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        });
-      });
-      await Promise.all(imagePromises);
-      
-      // Small timeout to ensure font and style layout rendering is fully stabilized
-      await new Promise((resolve) => setTimeout(resolve, 150));
-
-      const canvas = await html2canvas(targetElement, {
-        scale: 3, // High-quality 300+ DPI crisp vector-like render
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#FFFFFF',
-        logging: false,
-        width: 1122.52, // 297mm in pixels
-        height: 793.7,  // 210mm in pixels
-        windowWidth: 1122.52,
-        windowHeight: 793.7,
-        scrollX: 0,
-        scrollY: 0,
-        x: 0,
-        y: 0
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-
-      const pdfDoc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      pdfDoc.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
-      const pdfBlob = pdfDoc.output('blob');
+      const canvas = await captureCertificate(targetElement);
+      const { pdfBlob } = await createCertificatePdf(canvas, { includePreview: false });
       saveAs(pdfBlob, fileName);
     } catch (error) {
       console.error('Failed to generate certificate PDF:', error);

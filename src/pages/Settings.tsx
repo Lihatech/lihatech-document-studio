@@ -14,10 +14,11 @@ import {
   Trash2
 } from 'lucide-react';
 import { CertificatePartnerProfile, CompanySettings } from '../types';
+import { compressUploadedImage } from '../utils/imageCompression';
 
 interface SettingsProps {
   settings: CompanySettings;
-  onSaveSettings: (settings: CompanySettings) => void;
+  onSaveSettings: (settings: CompanySettings) => Promise<void>;
 }
 
 export default function Settings({ settings, onSaveSettings }: SettingsProps) {
@@ -64,9 +65,11 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
   const [stampUrl, setStampUrl] = useState(settings.stampUrl);
 
   const [savedBanner, setSavedBanner] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // Read uploaded images and convert to Base64
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'signature' | 'stamp') => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'signature' | 'stamp') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -75,30 +78,33 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
+    try {
+      const result = await compressUploadedImage(file);
       if (type === 'logo') setLogoUrl(result);
       if (type === 'signature') setSignatureUrl(result);
       if (type === 'stamp') setStampUrl(result);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to compress uploaded image', error);
+      alert('Could not read that image. Please try another file.');
+    }
   };
 
-  const handlePartnerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, partnerId: string) => {
+  const handlePartnerLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, partnerId: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
       alert('Image file is too large! Please upload a file smaller than 2MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const result = await compressUploadedImage(file);
       setCertificatePartners((partners) => partners.map((partner) => (
-        partner.id === partnerId ? { ...partner, logoUrl: reader.result as string } : partner
+        partner.id === partnerId ? { ...partner, logoUrl: result } : partner
       )));
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to compress partner logo', error);
+      alert('Could not read that image. Please try another file.');
+    }
   };
 
   const updateCertificatePartner = (id: string, patch: Partial<CertificatePartnerProfile>) => {
@@ -114,8 +120,12 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
     ]);
   };
 
-  const handleSaveAll = (e: React.FormEvent) => {
+  const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setSavedBanner(false);
+    setSaveError('');
 
     const termsArray = defaultTermsText
       .split('\n')
@@ -149,9 +159,15 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       certificatePartners
     };
 
-    onSaveSettings(updated);
-    setSavedBanner(true);
-    setTimeout(() => setSavedBanner(false), 3000);
+    try {
+      await onSaveSettings(updated);
+      setSavedBanner(true);
+      setTimeout(() => setSavedBanner(false), 3000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save shared settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -167,10 +183,14 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
         {savedBanner && (
           <div className="flex items-center space-x-1.5 text-xs text-emerald-600 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/10 self-end sm:self-auto">
             <CheckCircle className="h-4 w-4" />
-            <span>Preferences Saved Successfully!</span>
+            <span>Settings saved for all devices.</span>
           </div>
         )}
       </div>
+
+      {saving && <p role="status" className="text-sm text-slate-500">Saving settings…</p>}
+      {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
+      <p className="text-xs text-slate-500">After uploading branding images, save settings to use them on every device.</p>
 
       {/* Tabs Navigation */}
       <div className="flex border-b border-gray-200 dark:border-slate-800 gap-1 overflow-x-auto pb-px">
@@ -250,7 +270,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
                 <div className="flex justify-end pt-3">
                   <button
-                    type="submit"
+                    type="submit" disabled={saving}
                     className="flex items-center space-x-2 px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-all"
                   >
                     <Save className="h-4 w-4" />
@@ -441,7 +461,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
             {/* Save Button for Invoice settings */}
             <div className="flex justify-end pt-4">
               <button
-                type="submit"
+                type="submit" disabled={saving}
                 className="flex items-center space-x-2 px-8 py-4 bg-[#0F766E] hover:bg-[#0D655E] text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl shadow-lg cursor-pointer transition-all hover:translate-y-[-1px]"
               >
                 <Save className="h-4.5 w-4.5" />
@@ -683,7 +703,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
             {/* Save Button for Certificate settings */}
             <div className="flex justify-end pt-4">
               <button
-                type="submit"
+                type="submit" disabled={saving}
                 className="flex items-center space-x-2 px-8 py-4 bg-[#6D1F2A] hover:bg-[#5A1922] text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl shadow-lg cursor-pointer transition-all hover:translate-y-[-1px]"
               >
                 <Save className="h-4.5 w-4.5" />

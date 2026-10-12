@@ -16,11 +16,16 @@ import {
 } from './types';
 import {
   firebaseConfigured,
-  isAllowedCompanyUser,
-  loadCompanyData,
   subscribeToCompanyAuth,
   signOutCompany
 } from './lib/firebase';
+import {
+  ensureSupabaseAdmin,
+  supabaseConfigured,
+  loadCompanySettings,
+  saveCompanySettings,
+} from './lib/supabase';
+import { LMS_API_BASE_URL, lmsRequest } from './lib/lmsApi';
 
 // Pages
 import Login from './pages/Login';
@@ -35,6 +40,19 @@ import OldLetters from './pages/OldLetters';
 import PayslipBuilder from './pages/PayslipBuilder';
 import OldPayslips from './pages/OldPayslips';
 import Settings from './pages/Settings';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminModule, { type AdminModuleKey } from './pages/AdminModule';
+import TeamManagement from './pages/TeamManagement';
+
+const adminModuleByPath: Record<string, AdminModuleKey> = {
+  '/students': 'students',
+  '/batches': 'batches',
+  '/courses': 'courses',
+  '/lectures': 'lectures',
+  '/mock-interviews': 'mocks',
+  '/certificate-requests': 'certificates',
+  '/reports': 'reports',
+};
 
 // Layout & Previews
 import Navbar from './components/layout/Navbar';
@@ -42,14 +60,16 @@ import InvoicePreview from './components/invoice/InvoicePreview';
 import CertificatePreview from './components/certificate/CertificatePreview';
 
 export default function App() {
+  const authConfigured = firebaseConfigured && supabaseConfigured;
+
   // Authentication Guard State
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     if (typeof window === 'undefined') return false;
-    if (firebaseConfigured) return false;
-    return localStorage.getItem('lt_is_logged_in') === 'true';
+    return false;
   });
-  const [authReady, setAuthReady] = useState(!firebaseConfigured);
+  const [authReady, setAuthReady] = useState(!authConfigured);
   const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState('');
 
   // Active Routing Path State (URL synchronized)
   const [path, setPath] = useState(() => {
@@ -73,10 +93,9 @@ export default function App() {
   // Unified Database State
   const [db, setDb] = useState(() => getStoredData());
 
-  // Use Firebase/Google authentication when Firebase is configured. Keep the
-  // local demo login available when Firebase is not configured.
+  // Firebase handles sign-in; its ID token authenticates Supabase requests.
   useEffect(() => {
-    if (!firebaseConfigured) return;
+    if (!authConfigured) return;
 
     return subscribeToCompanyAuth(async (user) => {
       if (!user) {
@@ -87,34 +106,41 @@ export default function App() {
         return;
       }
 
-      if (!isAllowedCompanyUser(user)) {
+      try {
+        try {
+          await ensureSupabaseAdmin(user.uid);
+        } catch (profileError) {
+          if (!LMS_API_BASE_URL) throw profileError;
+          await lmsRequest('/auth/provision', { method: 'POST', body: JSON.stringify({}) });
+          await ensureSupabaseAdmin(user.uid);
+        }
+        const sharedSettings = await loadCompanySettings();
+        if (sharedSettings) {
+          setDb(current => ({ ...current, settings: { ...current.settings, ...sharedSettings } }));
+        }
+        setAuthEmail(user.email ?? null);
+        setAuthError('');
+        localStorage.setItem('lt_is_logged_in', 'true');
+        setIsLoggedIn(true);
+      } catch (error) {
+        console.error('Supabase admin profile is unavailable.', error);
+          const supabaseMessage =
+            error instanceof Error
+              ? error.message
+              : typeof error === 'object' && error !== null && 'message' in error
+                ? String(error.message)
+                : 'Could not verify admin access in Supabase.';
+          setAuthError(supabaseMessage);
         await signOutCompany();
         localStorage.removeItem('lt_is_logged_in');
         setIsLoggedIn(false);
         setAuthEmail(null);
+      }
+      finally {
         setAuthReady(true);
-        return;
       }
-
-      setAuthEmail(user.email);
-
-      const fallbackData = getStoredData() as Awaited<ReturnType<typeof loadCompanyData>>;
-      try {
-        const companyData = await loadCompanyData(fallbackData);
-        setDb(companyData);
-        saveStoredData(companyData);
-      } catch (error) {
-        // Firebase auth can succeed even when Firestore is temporarily offline.
-        // Keep the user signed in and use the local copy until the backend is reachable.
-        console.warn('Firestore unavailable; continuing with local data.', error);
-        setDb(fallbackData);
-      }
-
-      localStorage.setItem('lt_is_logged_in', 'true');
-      setIsLoggedIn(true);
-      setAuthReady(true);
     });
-  }, []);
+  }, [authConfigured]);
 
   // Editing pointers for Builders
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
@@ -151,19 +177,12 @@ export default function App() {
     saveStoredData(updates);
   };
 
-  // Login handler
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-    // Reload freshly configured store
-    const freshlyLoaded = getStoredData();
-    setDb(freshlyLoaded);
-  };
-
   // Logout handler
   const handleLogout = () => {
     localStorage.removeItem('lt_is_logged_in');
     setIsLoggedIn(false);
     setAuthEmail(null);
+    setAuthError('');
     if (firebaseConfigured) void signOutCompany();
     navigate('/');
   };
@@ -361,23 +380,26 @@ export default function App() {
   };
 
   // CORPORATE PREFERENCES HANDLER
-  const handleSaveSettings = (nextSettings: CompanySettings) => {
-    updateDbState({ settings: nextSettings });
+  const handleSaveSettings = async (nextSettings: CompanySettings) => {
+    await saveCompanySettings(nextSettings);
+    setDb(current => ({ ...current, settings: nextSettings }));
+    // Shared storage is authoritative; a full browser cache must not undo a successful save.
+    try { saveStoredData({ settings: nextSettings }); }
+    catch (error) { console.warn('Could not cache shared company settings locally.', error); }
   };
 
   // Auth check guard
-  if (firebaseConfigured && !authReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">Connecting to LihaTech Firebase...</div>;
+  if (authConfigured && !authReady) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">Verifying admin access...</div>;
   }
 
   if (!isLoggedIn) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Login authError={authError} />;
   }
 
   return (
-    <div id="app-shell" className="min-h-screen bg-[#FAFAFA] dark:bg-slate-950 font-sans transition-colors duration-250">
+    <div id="app-shell" className="min-h-screen bg-[#FAFAFA] font-sans transition-colors duration-250 dark:bg-slate-950">
       
-      {/* Top Professional Navigation Board */}
       <Navbar 
         path={path}
         navigate={navigate}
@@ -389,12 +411,22 @@ export default function App() {
       />
 
       {/* Main Container Stage */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 lg:ml-64 lg:px-8 lg:py-8">
         
         {/* Dynamic Route View Switching */}
         <div id="route-panel-container">
           
-          {path === '/' && (
+          {(path === '/' || path === '/lms') && (
+            <AdminDashboard navigate={navigate} />
+          )}
+
+          {adminModuleByPath[path] && (
+            <AdminModule module={adminModuleByPath[path]} navigate={navigate} />
+          )}
+
+          {path === '/team' && <TeamManagement />}
+
+          {path === '/documents' && (
             <Home navigate={navigate} />
           )}
 

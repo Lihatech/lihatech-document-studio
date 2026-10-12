@@ -1,47 +1,24 @@
 import { useState } from 'react';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { firebaseConfigured, signInWithCompanyGoogle } from '../lib/firebase';
+import { supabaseConfigured } from '../lib/supabase';
 
-const LOGIN_ATTEMPTS_KEY = 'lt_company_login_attempts';
-const MAX_LOGIN_ATTEMPTS = 2;
+interface LoginProps { authError?: string; }
 
-interface LoginProps {
-  onLoginSuccess: () => void;
-}
-
-export default function Login({ onLoginSuccess }: LoginProps) {
+export default function Login({ authError = '' }: LoginProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [failedAttempts, setFailedAttempts] = useState(() => {
-    if (typeof window === 'undefined') return 0;
-    return Number.parseInt(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '0', 10) || 0;
-  });
-
-  const isBlocked = failedAttempts >= MAX_LOGIN_ATTEMPTS;
+  const authConfigured = supabaseConfigured && firebaseConfigured;
 
   const handleCompanyLogin = async () => {
-    if (isBlocked) return;
-
     setError('');
     setIsLoading(true);
 
     try {
       await signInWithCompanyGoogle();
-      localStorage.removeItem(LOGIN_ATTEMPTS_KEY);
-      onLoginSuccess();
+      setIsLoading(false);
     } catch (err) {
-      if (err instanceof Error && err.name === 'CompanyAccountNotAllowedError') {
-        const nextAttempts = Math.min(failedAttempts + 1, MAX_LOGIN_ATTEMPTS);
-        localStorage.setItem(LOGIN_ATTEMPTS_KEY, String(nextAttempts));
-        setFailedAttempts(nextAttempts);
-        setError(
-          nextAttempts >= MAX_LOGIN_ATTEMPTS
-            ? ''
-            : `This account is not approved. Only the authenticated LihaTech company email can sign in. ${MAX_LOGIN_ATTEMPTS - nextAttempts} attempt remaining.`,
-        );
-      } else {
-        setError(err instanceof Error ? err.message : 'Company sign-in failed. Please try again.');
-      }
+      setError(err instanceof Error ? err.message : 'Company sign-in failed. Please try again.');
       setIsLoading(false);
     }
   };
@@ -71,25 +48,25 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <div className="mb-7">
               <h2 className="text-xl font-bold text-[#062b4b]">Sign in</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Use your approved LihaTech Google account to continue.
+                Use a Google account that has an active admin or instructor profile.
               </p>
             </div>
 
-            {error && (
+            {(authError || error) && (
               <div
                 className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700"
                 role="alert"
               >
-                {error}
+                {authError || error}
               </div>
             )}
 
-            {firebaseConfigured ? (
+            {authConfigured ? (
               <>
                 <button
                   type="button"
                   onClick={handleCompanyLogin}
-                  disabled={isLoading || isBlocked}
+                  disabled={isLoading}
                   className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#078edb] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#07547e] focus:outline-none focus:ring-2 focus:ring-[#078edb] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isLoading ? (
@@ -102,12 +79,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   )}
                 </button>
                 <p className="mt-4 text-center text-xs leading-5 text-slate-500">
-                  Only the authorized company email can access this studio.
+                  Access is granted only to active staff profiles in the LMS.
                 </p>
               </>
             ) : (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700" role="alert">
-                Firebase authentication is not configured for this deployment.
+                Configure Firebase Auth and Supabase in `.env.local` to enable admin sign-in.
               </div>
             )}
           </section>
@@ -118,29 +95,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         </div>
       </div>
 
-      {isBlocked && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#062b4b]/70 p-5 backdrop-blur-sm"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="blocked-login-title"
-        >
-          <div className="w-full max-w-sm rounded-2xl border border-rose-200 bg-white p-7 text-center shadow-2xl">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-              <ShieldCheck className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <h3 id="blocked-login-title" className="text-lg font-extrabold text-[#062b4b]">
-              Sign-in blocked
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Only the authenticated LihaTech company email can access Document Studio.
-            </p>
-            <p className="mt-4 text-xs font-semibold leading-5 text-rose-600">
-              Two unsuccessful attempts were detected in this browser. Please use the approved account or contact LihaTech support.
-            </p>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

@@ -481,15 +481,13 @@ export const getStoredData = () => {
   const settings = getOrSet<CompanySettings>('lihatech_settings', INITIAL_COMPANY_SETTINGS);
   
   // Auto-migrate to the new default logo if using the old default logo or if it refers to the old deleted logo
-  if (!settings.logoUrl || 
-    !settings.logoUrl.startsWith('data:image/') ||
-    settings.logoUrl === DEFAULT_LOGO_SVG || 
+  if (!settings.logoUrl ||
+    settings.logoUrl === DEFAULT_LOGO_SVG || (!settings.logoUrl.startsWith('data:image/') && (
     settings.logoUrl.includes('DEFAULT_LOGO_SVG') ||
     settings.logoUrl.includes('gear/tech') || 
     settings.logoUrl.includes('1E40AF') || 
     settings.logoUrl.includes('Tech diamond/shield icon') ||
-    settings.logoUrl.includes('horizontal') ||
-    settings.logoUrl.includes('logo')
+    settings.logoUrl.includes('/assets/horizontal_logo')))
   ) {
     settings.logoUrl = uploadedLogo || DEFAULT_LOGO_SVG;
     localStorage.setItem('lihatech_settings', JSON.stringify(settings));
@@ -497,11 +495,11 @@ export const getStoredData = () => {
 
   // Auto-migrate signature and stamp if they are still using old default inline SVG mockups and the user has uploaded actual files
   let settingsChanged = false;
-  if (settings.signatureUrl === DEFAULT_SIGNATURE_SVG || !settings.signatureUrl || settings.signatureUrl.includes('data:image/svg+xml') || settings.signatureUrl.includes('sign.png') || settings.signatureUrl.includes('sign%20WO%20BG.png') || settings.signatureUrl.includes('sign WO BG.png')) {
+  if (settings.signatureUrl === DEFAULT_SIGNATURE_SVG || !settings.signatureUrl || (!settings.signatureUrl.startsWith('data:image/') && (settings.signatureUrl.includes('sign.png') || settings.signatureUrl.includes('sign%20WO%20BG.png') || settings.signatureUrl.includes('sign WO BG.png')))) {
     settings.signatureUrl = uploadedSign || DEFAULT_SIGNATURE_SVG;
     settingsChanged = true;
   }
-  if (settings.stampUrl === DEFAULT_STAMP_SVG || !settings.stampUrl || settings.stampUrl.includes('data:image/svg+xml') || settings.stampUrl.includes('stamp.png')) {
+  if (settings.stampUrl === DEFAULT_STAMP_SVG || !settings.stampUrl || (!settings.stampUrl.startsWith('data:image/') && settings.stampUrl.includes('stamp.png'))) {
     settings.stampUrl = uploadedStamp || DEFAULT_STAMP_SVG;
     settingsChanged = true;
   }

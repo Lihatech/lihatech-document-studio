@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import html2canvas from '../lib/html2canvas-patch';
 import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Certificate, CompanySettings } from '../types';
 import CertificatePreview from '../components/certificate/CertificatePreview';
+import { addCertificateImageToPdf, captureCertificate, certificateCanvasToJpeg, createCertificatePdf } from '../utils/certificateExport';
 
 interface OldCertificatesProps {
   certificates: Certificate[];
@@ -263,35 +263,9 @@ export default function OldCertificates({
         throw new Error("Offscreen capture element not found");
       }
 
-      // Capture the certificate preview div as a high-quality image
-      const canvas = await html2canvas(certElement, {
-        scale: 3, // High-quality display rendering
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#FFFFFF',
-        logging: false,
-        width: 1122.52, // 297mm landscape width in pixels
-        height: 793.7, // 210mm landscape height in pixels
-        windowWidth: 1122.52,
-        windowHeight: 793.7,
-        scrollX: 0,
-        scrollY: 0,
-        x: 0,
-        y: 0
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
-      
+      const canvas = await captureCertificate(certElement);
+      const { pdfBlob } = await createCertificatePdf(canvas, { includePreview: false });
       const fileName = `LihaTech_Certificate_${c.candidateName.replace(/\s+/g, '_')}_${c.certificateId}.pdf`;
-      const pdfBlob = pdf.output('blob');
       saveAs(pdfBlob, fileName);
     } catch (err) {
       console.error('Failed to generate Certificate PDF', err);
@@ -312,7 +286,8 @@ export default function OldCertificates({
         const pdf = new jsPDF({
           orientation: 'landscape',
           unit: 'mm',
-          format: 'a4'
+          format: 'a4',
+          compress: true,
         });
         
         for (let i = 0; i < filteredBulkCandidates.length; i++) {
@@ -325,29 +300,14 @@ export default function OldCertificates({
           const certElement = offscreenRef.current;
           if (!certElement) continue;
 
-          const canvas = await html2canvas(certElement, {
-            scale: 3,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: '#FFFFFF',
-            logging: false,
-            width: 1122.52,
-            height: 793.7,
-            windowWidth: 1122.52,
-            windowHeight: 793.7,
-            scrollX: 0,
-            scrollY: 0,
-            x: 0,
-            y: 0
-          });
-          
-          const imgData = canvas.toDataURL('image/png');
+          const canvas = await captureCertificate(certElement);
+          const imgData = certificateCanvasToJpeg(canvas);
           
           if (i > 0) {
             pdf.addPage();
           }
           
-          pdf.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+          addCertificateImageToPdf(pdf, imgData);
         }
         
         const groupName = selectedBulkGroup.programName.replace(/\s+/g, '_');
@@ -368,30 +328,16 @@ export default function OldCertificates({
           const certElement = offscreenRef.current;
           if (!certElement) continue;
 
-          const canvas = await html2canvas(certElement, {
-            scale: 3,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: '#FFFFFF',
-            logging: false,
-            width: 1122.52,
-            height: 793.7,
-            windowWidth: 1122.52,
-            windowHeight: 793.7,
-            scrollX: 0,
-            scrollY: 0,
-            x: 0,
-            y: 0
-          });
-          
-          const imgData = canvas.toDataURL('image/png');
+          const canvas = await captureCertificate(certElement);
+          const imgData = certificateCanvasToJpeg(canvas);
           
           const singlePdf = new jsPDF({
             orientation: 'landscape',
             unit: 'mm',
-            format: 'a4'
+            format: 'a4',
+            compress: true,
           });
-          singlePdf.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+          addCertificateImageToPdf(singlePdf, imgData);
           
           const pdfBlob = singlePdf.output('blob');
           const fileName = `Certificate_${c.candidateName.replace(/\s+/g, '_')}_${c.certificateId}.pdf`;

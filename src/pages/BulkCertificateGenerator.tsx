@@ -24,7 +24,6 @@ import {
   Sliders
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import html2canvas from '../lib/html2canvas-patch';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { Certificate, CertificateLayout, CompanySettings, Course } from '../types';
@@ -42,6 +41,7 @@ import {
   CERTIFICATE_TYPE_PRESETS
 } from '../utils/certificateUtils';
 import CertificatePreview from '../components/certificate/CertificatePreview';
+import { addCertificateImageToPdf, captureCertificate, createCertificatePdf } from '../utils/certificateExport';
 
 const downloadBlob = (blob: Blob | string, filename: string) => {
   const url = typeof blob === 'string' ? blob : URL.createObjectURL(blob);
@@ -79,7 +79,7 @@ interface StudentRow {
   error?: string;
   pdfBlob?: Blob;
   pdfUrl?: string;
-  pngUrl?: string;
+  previewUrl?: string;
 }
 
 export default function BulkCertificateGenerator({
@@ -120,6 +120,7 @@ export default function BulkCertificateGenerator({
   const [previewImageIndex, setPreviewImageIndex] = useState<number>(0);
   const [activePreviewTab, setActivePreviewTab] = useState<'image' | 'pdf'>('image');
   const [isInIframe, setIsInIframe] = useState(false);
+  const objectUrlsRef = useRef<Set<string>>(new Set());
 
   const selectedPartner = settings.certificatePartners?.find((partner) => partner.id === partnerProfileId);
   const partnerSnapshot = {
@@ -133,24 +134,14 @@ export default function BulkCertificateGenerator({
     setIsInIframe(window.self !== window.top);
   }, []);
 
-  // Clean up object URLs on unmount or reset
+  // Clean up generated object URLs once, on unmount. Do not revoke them on
+  // every students state update or existing previews/downloads will break.
   useEffect(() => {
     return () => {
-      students.forEach(s => {
-        if (s.pdfUrl) {
-          URL.revokeObjectURL(s.pdfUrl);
-        }
-      });
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      objectUrlsRef.current.clear();
     };
-  }, [students]);
-
-  useEffect(() => {
-    return () => {
-      if (combinedPdfUrl) {
-        URL.revokeObjectURL(combinedPdfUrl);
-      }
-    };
-  }, [combinedPdfUrl]);
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const offscreenRef = useRef<HTMLDivElement>(null);
@@ -343,16 +334,10 @@ export default function BulkCertificateGenerator({
     setGenerationComplete(false);
     setCombinedPdf(null);
 
-    // Revoke previous URLs to avoid memory leaks
-    students.forEach(s => {
-      if (s.pdfUrl) {
-        URL.revokeObjectURL(s.pdfUrl);
-      }
-    });
-    if (combinedPdfUrl) {
-      URL.revokeObjectURL(combinedPdfUrl);
-      setCombinedPdfUrl(null);
-    }
+    // Revoke previous URLs to avoid memory leaks.
+    setCombinedPdfUrl(null);
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrlsRef.current.clear();
 
     // Prepare container for merged outputs if requested
     let pdfBundle: jsPDF | null = null;
@@ -360,7 +345,8 @@ export default function BulkCertificateGenerator({
       pdfBundle = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true,
       });
     }
 
@@ -384,24 +370,8 @@ export default function BulkCertificateGenerator({
       }
 
       try {
-        // Capture compiled student certificate using high-quality html2canvas
-        const canvas = await html2canvas(captureTarget, {
-          scale: 3,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#FFFFFF',
-          logging: false,
-          width: 1122.52,
-          height: 793.7,
-          windowWidth: 1122.52,
-          windowHeight: 793.7,
-          scrollX: 0,
-          scrollY: 0,
-          x: 0,
-          y: 0
-        });
-
-        const imgData = canvas.toDataURL('image/png');
+        const canvas = await captureCertificate(captureTarget);
+        const output = await createCertificatePdf(canvas);
 
         // Compile database record
         const certRecord: Certificate = {
@@ -436,24 +406,21 @@ export default function BulkCertificateGenerator({
         compiledCertificates.push(certRecord);
 
         // Always create a single-page PDF for live preview
-        const singlePdf = new jsPDF({
-          orientation: 'landscape',
-          unit: 'mm',
-          format: 'a4'
-        });
-        singlePdf.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
-        const pdfBlob = singlePdf.output('blob');
+        const pdfBlob = output.pdfBlob;
         const pdfUrl = URL.createObjectURL(pdfBlob);
+        const previewUrl = output.previewUrl;
+        objectUrlsRef.current.add(pdfUrl);
+        if (previewUrl) objectUrlsRef.current.add(previewUrl);
 
         if (exportType === 'combined' && pdfBundle) {
           // If combined mode, add page sequentially
           if (i > 0) {
             pdfBundle.addPage('a4', 'landscape');
           }
-          pdfBundle.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+          addCertificateImageToPdf(pdfBundle, output.imageData);
         }
 
-        setStudents(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'completed', pdfBlob, pdfUrl, pngUrl: imgData } : s));
+        setStudents(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'completed', pdfBlob, pdfUrl, previewUrl } : s));
       } catch (err: any) {
         console.error(err);
         setStudents(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'failed', error: err.message || 'Capture failed' } : s));
@@ -469,6 +436,7 @@ export default function BulkCertificateGenerator({
       setCombinedPdf(pdfBundle);
       const combinedBlob = pdfBundle.output('blob');
       const combinedUrl = URL.createObjectURL(combinedBlob);
+      objectUrlsRef.current.add(combinedUrl);
       setCombinedPdfUrl(combinedUrl);
     }
 
@@ -1035,9 +1003,9 @@ export default function BulkCertificateGenerator({
 
                       {/* Rendered Certificate Area */}
                       <div className="w-full overflow-hidden rounded-lg shadow-xs border border-gray-150 dark:border-slate-850 bg-white">
-                        {student.pngUrl ? (
+                        {student.previewUrl ? (
                           <img 
-                            src={student.pngUrl} 
+                            src={student.previewUrl}
                             alt={`Certificate for ${student.candidateName}`}
                             className="w-full h-auto object-contain"
                             referrerPolicy="no-referrer"
@@ -1185,7 +1153,7 @@ export default function BulkCertificateGenerator({
                       {combinedPdfUrl && (
                         <button
                           onClick={() => {
-                            const imgs = students.filter(s => s.status === 'completed' && s.pngUrl).map(s => s.pngUrl as string);
+                            const imgs = students.filter(s => s.status === 'completed' && s.previewUrl).map(s => s.previewUrl as string);
                             setPreviewImages(imgs);
                             setPreviewImageIndex(0);
                             setPreviewPdfUrl(combinedPdfUrl);
@@ -1400,8 +1368,8 @@ export default function BulkCertificateGenerator({
                           <>
                             <button
                               onClick={() => {
-                                if (student.pngUrl) {
-                                  setPreviewImages([student.pngUrl]);
+                                if (student.previewUrl) {
+                                  setPreviewImages([student.previewUrl]);
                                   setPreviewImageIndex(0);
                                 } else {
                                   setPreviewImages([]);

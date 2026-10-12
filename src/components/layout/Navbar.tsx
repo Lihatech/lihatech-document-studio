@@ -1,16 +1,24 @@
-import React from 'react';
-import { 
-  FileText, 
-  Award, 
-  Settings, 
-  LogOut, 
-  Sun, 
+import { useState } from 'react';
+import {
+  BarChart3,
+  BadgeCheck,
+  BookOpen,
+  FileStack,
+  GraduationCap,
+  LayoutDashboard,
+  Layers3,
+  LogOut,
+  Menu,
+  MessagesSquare,
   Moon,
-  Home,
-  Mail,
-  Receipt
+  Settings,
+  ShieldCheck,
+  Sun,
+  UsersRound,
+  Video,
+  X,
 } from 'lucide-react';
-import { CompanySettings } from '../../types';
+import type { CompanySettings } from '../../types';
 import companyLogo from '../../../only_logo-removebg-preview.png';
 
 interface NavbarProps {
@@ -23,135 +31,82 @@ interface NavbarProps {
   onLogout: () => void;
 }
 
-export default function Navbar({ 
-  path, 
-  navigate, 
-  settings, 
-  userEmail,
-  darkMode, 
-  setDarkMode, 
-  onLogout 
-}: NavbarProps) {
-  
-  const navItems = [
-    { path: '/', label: 'Home', icon: Home },
-    { path: '/invoice/old', label: 'Invoices', icon: FileText },
-    { path: '/certificate/old', label: 'Certificates', icon: Award },
-    { path: '/letter/old', label: 'Letters', icon: Mail },
-    { path: '/payslip/old', label: 'Payslips', icon: Receipt },
+const navGroups = [
+  { label: 'Workspace', items: [
+    { path: '/', label: 'Overview', icon: LayoutDashboard },
+  ] },
+  { label: 'Learning', items: [
+    { path: '/students', label: 'Students', icon: UsersRound },
+    { path: '/batches', label: 'Batches', icon: Layers3 },
+    { path: '/courses', label: 'Courses', icon: BookOpen },
+    { path: '/lectures', label: 'Live lectures', icon: Video },
+    { path: '/mock-interviews', label: 'Mock interviews', icon: MessagesSquare },
+  ] },
+  { label: 'Operations', items: [
+    { path: '/certificate-requests', label: 'Certificates', icon: BadgeCheck },
+    { path: '/documents', label: 'Document Studio', icon: FileStack },
+    { path: '/reports', label: 'Reports', icon: BarChart3 },
+  ] },
+  { label: 'Administration', items: [
+    { path: '/team', label: 'Instructors & admins', icon: GraduationCap },
     { path: '/settings', label: 'Settings', icon: Settings },
-  ];
+  ] },
+];
 
-  return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-18 items-center justify-between">
-          
-          {/* Logo & Tagline */}
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="flex h-15 w-auto max-w-[180px] items-center justify-center overflow-hidden py-0.5">
-              <img 
-                src={companyLogo} 
-                alt={settings.name} 
-                className="h-full max-h-14 w-auto object-contain"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div>
-              <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
-                {settings.name} <span className="text-xs font-semibold text-[#078EDB] dark:text-[#45D8F5] bg-[#EAFCFF] dark:bg-[#062B4B] px-2 py-0.5 rounded-md ml-1.5 border border-[#00B9E8]/30">Studio</span>
-              </span>
-              <p className="text-xxs font-semibold text-gray-500 dark:text-gray-400 tracking-wider uppercase" style={{ fontSize: '9px' }}>
-                {settings.tagline}
-              </p>
+const pageTitles = navGroups.flatMap((group) => group.items).reduce<Record<string, string>>((titles, item) => {
+  titles[item.path] = item.label;
+  return titles;
+}, {});
+
+export default function Navbar({ path, navigate, settings, userEmail, darkMode, setDarkMode, onLogout }: NavbarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const isDocumentPath = path === '/documents' || ['/invoice/', '/certificate/', '/letter/', '/payslip/'].some((prefix) => path.startsWith(prefix));
+  const currentTitle = pageTitles[path] || (isDocumentPath ? 'Document Studio' : 'LMS Admin');
+
+  const sidebar = (
+    <div className="flex h-full min-h-0 flex-col bg-white dark:bg-slate-900">
+      <button onClick={() => { navigate('/'); setMobileOpen(false); }} className="flex min-h-[76px] items-center gap-3 border-b border-slate-200 px-5 text-left dark:border-slate-800" aria-label="Go to overview">
+        <img src={companyLogo} alt="" className="h-10 w-10 object-contain" />
+        <span className="min-w-0"><span className="block truncate text-sm font-extrabold text-slate-950 dark:text-white">{settings.name}</span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-cyan-300">LMS Admin</span></span>
+      </button>
+
+      <nav aria-label="Admin navigation" className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-2 px-3 text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-400">{group.label}</p>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = path === item.path || (item.path === '/documents' && isDocumentPath) || (item.path === '/' && path === '/lms');
+                return <button key={item.path} onClick={() => { navigate(item.path); setMobileOpen(false); }} aria-current={active ? 'page' : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${active ? 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}><Icon size={18} className={active ? 'text-sky-600 dark:text-cyan-300' : 'text-slate-400'} /><span>{item.label}</span></button>;
+              })}
             </div>
           </div>
+        ))}
+      </nav>
 
-          {/* Navigation Links */}
-          <nav className="hidden lg:flex space-x-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              // Active check: exact match, or checking sub-paths like /invoice/new vs /invoice/old
-              const isActive = path === item.path || 
-                               (item.path === '/invoice/old' && path.startsWith('/invoice')) ||
-                               (item.path === '/certificate/old' && path.startsWith('/certificate')) ||
-                               (item.path === '/letter/old' && path.startsWith('/letter')) ||
-                               (item.path === '/payslip/old' && path.startsWith('/payslip'));
-                               
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
-                    isActive
-                      ? 'bg-[#078EDB]/10 text-[#07547E] dark:text-[#45D8F5] border-b-2 border-[#078EDB]'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-[#078EDB] dark:text-[#45D8F5]' : 'text-gray-400 dark:text-gray-500'}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Action Utilities */}
-          <div className="flex items-center space-x-4">
-            
-            {/* Theme Toggle */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors duration-200 cursor-pointer"
-              aria-label="Toggle Theme"
-            >
-              {darkMode ? <Sun className="h-5 w-5 text-[#45D8F5]" /> : <Moon className="h-5 w-5 text-[#07547E]" />}
-            </button>
-
-            {/* Profile Dropdown */}
-            <div className="flex items-center space-x-3 border-l border-gray-200 dark:border-slate-800 pl-4">
-              <div className="hidden sm:flex flex-col items-end">
-                <span className="text-xs font-semibold text-gray-900 dark:text-white">LihaTech Studio</span>
-                <span className="text-xxs text-gray-500 dark:text-gray-400" style={{ fontSize: '10px' }}>{userEmail || 'Authenticated account'}</span>
-              </div>
-              <button
-                onClick={onLogout}
-                className="p-2 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 transition-colors duration-200 cursor-pointer"
-                title="Logout"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
-            
-          </div>
-
+      <div className="border-t border-slate-200 p-3 dark:border-slate-800">
+        <div className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-extrabold text-sky-800 dark:bg-sky-950 dark:text-cyan-300">{(userEmail?.[0] || 'A').toUpperCase()}</div>
+          <div className="min-w-0"><p className="truncate text-xs font-bold text-slate-900 dark:text-white">Admin account</p><p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{userEmail || 'Authenticated'}</p></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setDarkMode(!darkMode)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}{darkMode ? 'Light' : 'Dark'}</button>
+          <button onClick={onLogout} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"><LogOut size={16} />Sign out</button>
         </div>
       </div>
-      
-      {/* Mobile Nav Subbar */}
-      <div className="lg:hidden flex items-center justify-start overflow-x-auto border-t border-gray-100 dark:border-slate-800 py-2 px-4 space-x-2 scrollbar-none">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = path === item.path || 
-                           (item.path === '/invoice/old' && path.startsWith('/invoice')) ||
-                           (item.path === '/certificate/old' && path.startsWith('/certificate')) ||
-                           (item.path === '/letter/old' && path.startsWith('/letter')) ||
-                           (item.path === '/payslip/old' && path.startsWith('/payslip'));
-          return (
-            <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer ${
-                isActive
-                  ? 'bg-[#078EDB] text-white shadow-sm'
-                  : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              <Icon className="h-3 w-3" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </header>
+    </div>
   );
+
+  return <>
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 shadow-sm dark:border-slate-800 lg:block">{sidebar}</aside>
+
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:px-6 lg:ml-64 lg:px-8">
+      <button onClick={() => setMobileOpen(true)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden" aria-label="Open navigation"><Menu size={20} /></button>
+      <div className="min-w-0"><p className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{currentTitle}</p><p className="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:block">LihaTech learning operations</p></div>
+      <div className="ml-auto hidden items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 sm:flex"><ShieldCheck size={15} />Secure admin session</div>
+    </header>
+
+    {mobileOpen && <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Admin navigation"><button className="absolute inset-0 h-full w-full bg-slate-950/60" onClick={() => setMobileOpen(false)} aria-label="Close navigation" /><aside className="absolute inset-y-0 left-0 w-[min(20rem,88vw)] shadow-2xl">{sidebar}<button onClick={() => setMobileOpen(false)} className="absolute right-3 top-4 inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close navigation"><X size={18} /></button></aside></div>}
+  </>;
 }

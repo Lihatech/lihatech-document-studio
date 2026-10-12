@@ -2,14 +2,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isLihaTechUser() {
+    function isCompanyAdmin() {
       return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email.matches('.*@lihatech\\.com$');
+        && request.auth.uid == 'iRW6JBDmBpSReYdUSlfn1ZLxvgo2';
     }
 
     match /companies/{companyId} {
-      allow read, write: if isLihaTechUser();
+      allow read, write: if isCompanyAdmin();
     }
   }
 }
