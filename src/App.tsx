@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  getStoredData,
   getDefaultStudioData,
   normalizeSettings,
   saveStoredData,
@@ -29,7 +28,7 @@ import {
   loadCompanySettings,
   saveCompanySettings,
 } from './lib/supabase';
-import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, recordKinds, isSharedRecord, type StudioData } from './lib/documentStudio';
+import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, type StudioData } from './lib/documentStudio';
 import { LMS_API_BASE_URL, lmsRequest } from './lib/lmsApi';
 
 // Pages
@@ -111,8 +110,6 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const busyRef = React.useRef(false);
-  const [legacy] = useState(() => getStoredData());
-  const [importDismissed, setImportDismissed] = useState(false);
 
   // Firebase handles sign-in; its ID token authenticates Supabase requests.
   useEffect(() => {
@@ -281,22 +278,6 @@ export default function App() {
     return settings.certificatePartners!.find(value => value.name.toLowerCase() === name.trim().toLowerCase())!.id;
   };
 
-  const legacyUpdates: Partial<StudioData> = {};
-  for (const collection of Object.keys(recordKinds) as (keyof typeof recordKinds)[]) {
-    const existing = new Set(db[collection].map(row => 'id' in row ? row.id : row.employeeId));
-    const missing = legacy[collection].filter(row => !existing.has('id' in row ? row.id : row.employeeId) && !isSharedRecord(collection, 'id' in row ? row.id : row.employeeId));
-    if (missing.length) (legacyUpdates[collection] as unknown[]) = [...db[collection], ...missing];
-  }
-  const legacyCount = Object.keys(legacyUpdates).reduce((total, collection) => total + legacyUpdates[collection as keyof typeof recordKinds]!.length - db[collection as keyof typeof recordKinds].length, 0);
-  const importLegacy = async () => {
-    if (!window.confirm('Import the browser records into the shared registry? Review the backup first; older versions may contain sample records.')) return;
-    if (await updateDbState(legacyUpdates, createActivity('bulk_generated', 'Imported legacy browser records'))) setImportDismissed(true);
-  };
-  const downloadLegacy = () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(legacy, null, 2)], { type: 'application/json' }));
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'document-studio-browser-backup.json'; anchor.click(); URL.revokeObjectURL(url);
-  };
-
   // Auth check guard
   if (authConfigured && !authReady) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">Verifying admin access...</div>;
@@ -325,11 +306,6 @@ export default function App() {
       <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 lg:ml-64 lg:px-8 lg:py-8">
 
         {saveError && <div role="alert" className="fixed right-4 top-4 z-[10000] max-w-lg rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-lg">{saveError}</div>}
-        {!importDismissed && legacyCount > 0 && (path === '/documents' || path.startsWith('/invoice') || path.startsWith('/certificate') || path.startsWith('/letter') || path.startsWith('/payslip')) &&
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-900">
-            <p>{legacyCount} browser records are not in the shared registry. Older versions may include samples. Review the backup before importing.</p>
-            <div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={downloadLegacy} className="min-h-11 underline">Download backup</button><button type="button" onClick={importLegacy} className="min-h-11 underline">Import browser records</button><button type="button" onClick={() => setImportDismissed(true)} className="min-h-11 underline">Dismiss</button></div>
-          </div>}
         {/* Dynamic Route View Switching */}
         <div id="route-panel-container" tabIndex={-1} className={getDocumentSection(path) ? "document-workspace mx-auto max-w-screen-2xl outline-none" : "outline-none"}>
           <DocumentNavigation path={path} navigate={navigate} editing={Boolean((path === "/invoice/new" && editingInvoice) || (path === "/certificate/new" && editingCertificate) || (path === "/letter/new" && editingLetter) || (path === "/payslip/new" && editingPayslip))} />

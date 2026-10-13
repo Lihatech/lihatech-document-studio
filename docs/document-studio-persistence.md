@@ -12,7 +12,7 @@ Stable document layout code, built-in certificate wording/categories, field enum
 
 ## Existing browser records
 
-Old browser data is not deleted or automatically uploaded: earlier app versions seeded sample records. The Document Studio banner offers a JSON backup and an explicit import into the shared registry. Review the backup first. Import excludes record IDs already present, including archived IDs. Duplicate document numbers cause the complete import to fail without partial writes. Use the browser where the original records were created for this one-time import.
+Old browser data is not deleted or automatically uploaded: earlier app versions seeded sample records. The legacy import banner and its actions have been removed from the interface. Document Studio loads records from the shared registry; any old browser data remains untouched in the original browser.
 
 ## Deployment and validation
 
