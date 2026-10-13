@@ -1251,7 +1251,7 @@ export default function CertificatePreview({
                       className="font-black text-black text-lg leading-tight tracking-wide whitespace-nowrap"
                       style={{ fontSize: `${18 * getElementScale('signature')}px` }}
                     >
-                      Director LihaTech
+                      {settings.directorDesignation}
                     </p>
                   </div>
                 </div>

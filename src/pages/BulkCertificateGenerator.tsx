@@ -1,3 +1,5 @@
+import SavedOptionSelect from '../components/SavedOptionSelect';
+import { getCertificateCategoryOptions } from '../utils/certificateUtils';
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Plus, 
@@ -59,8 +61,10 @@ const downloadBlob = (blob: Blob | string, filename: string) => {
 interface BulkCertificateGeneratorProps {
   courses: Course[];
   settings: CompanySettings;
+  onAddCertificateOption: (kind: 'category' | 'partner', name: string) => Promise<string>;
   existingCertificates: Certificate[];
-  onSaveCertificates: (certs: Certificate[]) => void;
+  onSaveCourse: (course: Course) => Promise<boolean>;
+  onSaveCertificates: (certs: Certificate[]) => Promise<boolean>;
   navigate: (path: string) => void;
 }
 
@@ -85,6 +89,8 @@ interface StudentRow {
 export default function BulkCertificateGenerator({
   courses,
   settings,
+  onSaveCourse,
+  onAddCertificateOption,
   existingCertificates,
   onSaveCertificates,
   navigate
@@ -155,10 +161,10 @@ export default function BulkCertificateGenerator({
       setCertificateType(first.type);
       setCompletionText(getDefaultCompletionText(first.type));
     } else {
-      setProgramName('Masterclass on Machine Learning');
+      setProgramName('');
       setCompletionText(getDefaultCompletionText('Course Completion'));
     }
-  }, [courses, settings.certificatePartners]);
+  }, []);
 
   // Download sample template file
   const downloadSampleTemplate = () => {
@@ -176,37 +182,37 @@ export default function BulkCertificateGenerator({
     
     const sampleData = [
       {
-        'Certificate ID': 'LT-2026-001',
-        'Candidate Name': 'Shahid Himmat Shaikh',
+        'Certificate ID': '',
+        'Candidate Name': 'Example Candidate',
         'Certify Statement': 'THIS IS TO CERTIFY THAT',
         'Completion Statement': 'has successfully completed the course',
         'Schedule Date Line': 'held in May 2026',
-        'Start Date': '2026-06-01',
-        'End Date': '2026-06-30',
+        'Start Date': new Date().toISOString().split('T')[0],
+        'End Date': new Date().toISOString().split('T')[0],
         'Event Date': '',
-        'Issue Date': '2026-06-30'
+        'Issue Date': new Date().toISOString().split('T')[0]
       },
       {
-        'Certificate ID': 'LT-2026-002',
-        'Candidate Name': 'Shahid Himmat Shaikh',
+        'Certificate ID': '',
+        'Candidate Name': 'Example Candidate',
         'Certify Statement': 'THIS IS TO CERTIFY THAT',
         'Completion Statement': 'in appreciation of outstanding contribution and dedication to',
         'Schedule Date Line': 'held in May 2026',
-        'Start Date': '2026-06-01',
-        'End Date': '2026-06-30',
+        'Start Date': new Date().toISOString().split('T')[0],
+        'End Date': new Date().toISOString().split('T')[0],
         'Event Date': '',
-        'Issue Date': '2026-06-30'
+        'Issue Date': new Date().toISOString().split('T')[0]
       },
       {
-        'Certificate ID': 'LT-2026-003',
-        'Candidate Name': 'Shahid Himmat Shaikh',
+        'Certificate ID': '',
+        'Candidate Name': 'Example Candidate',
         'Certify Statement': 'PROUDLY PRESENTED TO',
         'Completion Statement': 'for outstanding performance and exceptional dedication to',
         'Schedule Date Line': 'held in May 2026',
-        'Start Date': '2026-06-01',
-        'End Date': '2026-06-30',
+        'Start Date': new Date().toISOString().split('T')[0],
+        'End Date': new Date().toISOString().split('T')[0],
         'Event Date': '',
-        'Issue Date': '2026-06-30'
+        'Issue Date': new Date().toISOString().split('T')[0]
       }
     ];
     
@@ -375,7 +381,7 @@ export default function BulkCertificateGenerator({
 
         // Compile database record
         const certRecord: Certificate = {
-          id: 'cert_bulk_' + Date.now() + '_' + i,
+          id: crypto.randomUUID(),
           certificateId: activeStudent.certificateId,
           candidateName: activeStudent.candidateName,
           candidateEmail: '',
@@ -429,7 +435,9 @@ export default function BulkCertificateGenerator({
 
     // Save all to parent registry
     if (compiledCertificates.length > 0) {
-      onSaveCertificates(compiledCertificates);
+      if (!await onSaveCertificates(compiledCertificates)) {
+        setIsGenerating(false); setCurrentIndex(-1); return;
+      }
     }
 
     if (exportType === 'combined' && pdfBundle) {
@@ -510,8 +518,8 @@ export default function BulkCertificateGenerator({
   // Real-time Preview logic
   const dummyStudent: StudentRow = {
     id: 'dummy',
-    certificateId: 'LT-2026-XXXX',
-    candidateName: 'Shahid Shaikh',
+    certificateId: `LT-CERT-${new Date().getFullYear()}-XXXX`,
+    candidateName: 'Candidate name',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     eventDate: '',
@@ -552,13 +560,13 @@ export default function BulkCertificateGenerator({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in py-4 max-w-5xl mx-auto" id="bulk-certificates-page">
+    <div className="space-y-6 animate-fade-in py-2" id="bulk-certificates-page">
       
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">
         <div>
-          <span className="text-xxs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest block">Automation Suite</span>
-          <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">Bulk Certificate Compiler</h2>
+          <span className="text-xxs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest block">Certificates</span>
+          <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Bulk certificates</h1>
         </div>
         
         {/* Sub Navigation Button Group */}
@@ -576,13 +584,6 @@ export default function BulkCertificateGenerator({
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Create New</span>
-          </button>
-          <button
-            onClick={() => navigate('/certificate/bulk')}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#6D1F2A] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-default transition-all shadow-sm"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Bulk Generation</span>
           </button>
         </div>
       </div>
@@ -604,20 +605,15 @@ export default function BulkCertificateGenerator({
               {/* Certificate Type */}
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Certificate Type</label>
-                <input
-                  type="text"
-                  value={certificateType}
-                  onChange={(e) => {
-                    const newType = e.target.value;
+                <SavedOptionSelect label="Certification category" value={certificateType}
+                  options={getCertificateCategoryOptions(settings.certificateCategories, certificateType)}
+                  onChange={(newType) => {
                     const oldDef = getDefaultCompletionText(certificateType);
                     setCertificateType(newType);
-                    if (!completionText || completionText === oldDef) {
-                      setCompletionText(getDefaultCompletionText(newType));
-                    }
+                    if (!completionText || completionText === oldDef) setCompletionText(getDefaultCompletionText(newType));
                   }}
-                  placeholder="e.g. Course Completion, Outstanding Performer"
-                  className="w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-medium"
-                />
+                  onAdd={(name) => onAddCertificateOption('category', name)}
+                  className="w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-medium" />
                 <div className="flex flex-wrap gap-1 pt-1">
                   {CERTIFICATE_TYPE_PRESETS.slice(0, 4).map((preset) => {
                     const t = preset.value;
@@ -645,19 +641,30 @@ export default function BulkCertificateGenerator({
                 </div>
               </div>
 
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Saved programme</label>
+            <SavedOptionSelect label="Programme" value={courses.some(course => course.name === programName) ? programName : ''}
+              options={[{ value: '', label: 'Choose a saved programme' }, ...courses.map(course => ({ value: course.name, label: course.name }))]}
+              onChange={(name) => {
+                const course = courses.find(course => course.name === name);
+                if (course) { setProgramName(course.name); setCertificateType(course.type); setCompletionText(course.defaultText || getDefaultCompletionText(course.type)); }
+              }}
+              onAdd={async (name) => {
+                const existing = courses.find(course => course.name.toLowerCase() === name.toLowerCase());
+                if (existing) return existing.name;
+                if (!await onSaveCourse({ id: crypto.randomUUID(), name, type: certificateType, duration: '', mode: 'Online', description: '', defaultText: completionText })) throw new Error('Programme could not be saved. Please try again.');
+                setProgramName(name); return name;
+              }}
+              className="block min-h-11 w-full rounded-xl border border-slate-300 bg-transparent px-3 text-xs" />
+          </div>
+
               {/* Partner institute */}
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Partner Institute (optional)</label>
-                <select
-                  value={partnerProfileId}
-                  onChange={(e) => setPartnerProfileId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-medium"
-                >
-                  <option value="">LihaTech only</option>
-                  {(settings.certificatePartners || []).map((partner) => (
-                    <option key={partner.id} value={partner.id}>{partner.name}</option>
-                  ))}
-                </select>
+                <SavedOptionSelect label="Partner institute" value={partnerProfileId}
+                  options={[{ value: '', label: `${settings.name} only` }, ...(settings.certificatePartners || []).map(partner => ({ value: partner.id, label: partner.name }))]}
+                  onChange={setPartnerProfileId} onAdd={(name) => onAddCertificateOption('partner', name)}
+                  className="w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-medium" />
                 <p className="text-[9px] text-gray-400">Reusable institute logos are managed in Certificate Settings.</p>
               </div>
 

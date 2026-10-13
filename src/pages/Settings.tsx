@@ -13,7 +13,7 @@ import {
   Plus,
   Trash2
 } from 'lucide-react';
-import { CertificatePartnerProfile, CompanySettings } from '../types';
+import { CertificatePartnerProfile, CompanySettings, Letter, LetterType } from '../types';
 import { compressUploadedImage } from '../utils/imageCompression';
 
 interface SettingsProps {
@@ -23,7 +23,7 @@ interface SettingsProps {
 
 export default function Settings({ settings, onSaveSettings }: SettingsProps) {
   // Tab state
-  const [activeTab, setActiveTab] = useState<'user' | 'invoice' | 'certificate'>('user');
+  const [activeTab, setActiveTab] = useState<'user' | 'invoice' | 'certificate' | 'letter'>('user');
 
   // 1. Company Contact State
   const [email, setEmail] = useState(settings.email);
@@ -35,7 +35,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
   const [address, setAddress] = useState(settings.address);
   const [website, setWebsite] = useState(settings.website);
   const [gstNumber, setGstNumber] = useState(settings.gstNumber);
-  const [panNumber, setPanNumber] = useState(settings.panNumber || 'AAACL8890C');
+  const [panNumber, setPanNumber] = useState(settings.panNumber || '');
   
   // Bank Account State
   const [bankName, setBankName] = useState(settings.bankName);
@@ -64,6 +64,9 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
   const [signatureUrl, setSignatureUrl] = useState(settings.signatureUrl);
   const [stampUrl, setStampUrl] = useState(settings.stampUrl);
 
+  const [servicePresetsText, setServicePresetsText] = useState(() => (settings.invoiceServicePresets || []).map(preset => `${preset.name} | ${preset.desc}`).join('\n'));
+  const [letterDefaults, setLetterDefaults] = useState(settings.letterDefaults || {});
+  const [letterDefaultType, setLetterDefaultType] = useState<LetterType>('Job Offer');
   const [savedBanner, setSavedBanner] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -133,6 +136,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       .filter(t => t.length > 0);
 
     const updated: CompanySettings = {
+      ...settings,
       name: name.trim(),
       tagline: tagline.trim(),
       address: address.trim(),
@@ -156,7 +160,9 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       defaultTerms: termsArray,
       certTemplate: certTemplate,
       defaultCertText: defaultCertText.trim(),
-      certificatePartners
+      certificatePartners,
+      letterDefaults,
+      invoiceServicePresets: servicePresetsText.split('\n').map(line => { const [name, ...description] = line.split('|'); return { name: name.trim(), desc: description.join('|').trim() }; }).filter(preset => preset.name),
     };
 
     try {
@@ -176,8 +182,8 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       {/* Header title */}
       <div className="pb-4 border-b border-gray-100 dark:border-slate-850 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <span className="text-xxs font-bold text-amber-600 uppercase tracking-widest block">Configure Workspace</span>
-          <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">Studio Management Settings</h2>
+          <span className="text-xxs font-bold text-amber-600 uppercase tracking-widest block">Document Studio</span>
+          <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Document settings</h1>
         </div>
         
         {savedBanner && (
@@ -188,9 +194,9 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
         )}
       </div>
 
-      {saving && <p role="status" className="text-sm text-slate-500">Saving settings…</p>}
+      {saving && <p role="status" className="text-sm text-slate-500 dark:text-slate-400">Saving settings…</p>}
       {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
-      <p className="text-xs text-slate-500">After uploading branding images, save settings to use them on every device.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">After uploading branding images, save settings to use them on every device.</p>
 
       {/* Tabs Navigation */}
       <div className="flex border-b border-gray-200 dark:border-slate-800 gap-1 overflow-x-auto pb-px">
@@ -227,6 +233,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
           <Award className="h-4 w-4" />
           <span>Certificate Settings</span>
         </button>
+      <button type="button" onClick={() => setActiveTab('letter')} className="min-h-11 px-5 text-xs font-bold">Letter Defaults</button>
       </div>
 
       <div className="space-y-6">
@@ -244,7 +251,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               <form onSubmit={handleSaveAll} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Primary Contact Email</label>
+                    <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Primary Contact Email</label>
                     <input
                       type="email"
                       value={email}
@@ -257,7 +264,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Registered Contact Phone</label>
+                    <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Registered Contact Phone</label>
                     <input
                       type="text"
                       value={phone}
@@ -294,7 +301,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Registered Firm Name *</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Registered Firm Name *</label>
                   <input
                     type="text"
                     required
@@ -306,7 +313,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Company Tagline / Subtitle</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Company Tagline / Subtitle</label>
                   <input
                     type="text"
                     value={tagline}
@@ -319,7 +326,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">HQ Corporate Address</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">HQ Corporate Address</label>
                   <input
                     type="text"
                     value={address}
@@ -329,7 +336,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Website Domain</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Website Domain</label>
                   <input
                     type="text"
                     value={website}
@@ -342,7 +349,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">GSTIN Registration</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">GSTIN Registration</label>
                   <input
                     type="text"
                     value={gstNumber}
@@ -352,7 +359,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">PAN Number</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">PAN Number</label>
                   <input
                     type="text"
                     value={panNumber}
@@ -373,7 +380,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Bank Name</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Bank Name</label>
                   <input
                     type="text"
                     value={bankName}
@@ -383,7 +390,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Account Beneficiary Name</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Account Beneficiary Name</label>
                   <input
                     type="text"
                     value={accountHolder}
@@ -396,7 +403,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Account Number</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Account Number</label>
                   <input
                     type="text"
                     value={accountNumber}
@@ -406,7 +413,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">IFSC Routing Code</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">IFSC Routing Code</label>
                   <input
                     type="text"
                     value={ifscCode}
@@ -416,7 +423,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">UPI ID (VPA)</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">UPI ID (VPA)</label>
                   <input
                     type="text"
                     value={upiId}
@@ -436,7 +443,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               </div>
 
               <div>
-                <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Standard GST Tax Rate (%)</label>
+                <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Standard GST Tax Rate (%)</label>
                 <input
                   type="number"
                   value={defaultGstPercent}
@@ -447,7 +454,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               </div>
 
               <div>
-                <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Default Invoice Terms & Conditions (One per line)</label>
+                <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Default Invoice Terms & Conditions (One per line)</label>
                 <textarea
                   rows={5}
                   value={defaultTermsText}
@@ -458,6 +465,9 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               </div>
             </div>
 
+            <label className="block text-xs font-bold">Reusable service suggestions (one per line: name | description)
+              <textarea rows={6} value={servicePresetsText} onChange={event => setServicePresetsText(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 bg-transparent p-3 text-sm" />
+            </label>
             {/* Save Button for Invoice settings */}
             <div className="flex justify-end pt-4">
               <button
@@ -483,7 +493,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               </div>
 
               <div>
-                <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-3">Select Default Design Template Preset</label>
+                <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-3">Select Default Design Template Preset</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
                     { id: 'royal', name: 'Royal Gold', desc: 'Premium luxury border & crest', color: 'border-amber-400 bg-amber-50/10' },
@@ -502,7 +512,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                       }`}
                     >
                       <span className="font-extrabold text-xs text-gray-900 dark:text-white block uppercase mb-1">{t.name}</span>
-                      <span className="text-gray-400 text-[10px] leading-snug">{t.desc}</span>
+                      <span className="text-gray-400 dark:text-slate-400 text-[10px] leading-snug">{t.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -516,7 +526,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   <Building2 className="h-5 w-5" />
                   <div>
                     <h3 className="font-extrabold text-gray-900 dark:text-white text-sm uppercase tracking-wider">Partner Institute Profiles</h3>
-                    <p className="text-[10px] text-gray-400 mt-1 normal-case tracking-normal">Save institute logos once, then reuse them for single or bulk certificates.</p>
+                    <p className="text-[10px] text-gray-400 dark:text-slate-400 mt-1 normal-case tracking-normal">Save institute logos once, then reuse them for single or bulk certificates.</p>
                   </div>
                 </div>
                 <button
@@ -541,7 +551,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                         {partner.logoUrl ? (
                           <img src={partner.logoUrl} alt={`${partner.name} logo`} className="max-h-16 max-w-[104px] object-contain" />
                         ) : (
-                          <FileImage className="h-6 w-6 text-gray-400" />
+                          <FileImage className="h-6 w-6 text-gray-400 dark:text-slate-400" />
                         )}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -594,7 +604,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Authorized Signatory Name</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Authorized Signatory Name</label>
                   <input
                     type="text"
                     value={directorName}
@@ -604,7 +614,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Signatory Designation</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Signatory Designation</label>
                   <input
                     type="text"
                     value={directorDesignation}
@@ -624,7 +634,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               </div>
 
               <div>
-                <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Customize default bottom paragraph content</label>
+                <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Customize default bottom paragraph content</label>
                 <textarea
                   rows={3}
                   value={defaultCertText}
@@ -632,7 +642,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
                   placeholder="The participant has demonstrated dedication, active participation and successfully completed all the hands-on sessions."
                   className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-3 py-2.5 text-xs text-gray-900 dark:text-white outline-none resize-none font-semibold leading-relaxed"
                 />
-                <span className="text-[10px] text-gray-400 italic mt-1 block">This paragraph appears on the lower third of generated certificates. Editing this acts as a default preset for future designs.</span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-400 italic mt-1 block">This paragraph appears on the lower third of generated certificates. Editing this acts as a default preset for future designs.</span>
               </div>
             </div>
 
@@ -646,12 +656,12 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Logo */}
                 <div className="space-y-2">
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider">Header Brand Logo</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">Header Brand Logo</label>
                   <div className="border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50 dark:bg-slate-950/40 text-center flex flex-col items-center justify-between h-40">
                     {logoUrl ? (
                       <img src={logoUrl} alt="Logo" className="max-h-20 max-w-full object-contain mb-2" />
                     ) : (
-                      <div className="p-3 bg-gray-100 rounded-full text-gray-400 mb-2">
+                      <div className="p-3 bg-gray-100 rounded-full text-gray-400 dark:text-slate-400 mb-2">
                         <FileImage className="h-6 w-6" />
                       </div>
                     )}
@@ -664,12 +674,12 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
                 {/* Stamp */}
                 <div className="space-y-2">
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider">Official Authority Stamp</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">Official Authority Stamp</label>
                   <div className="border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50 dark:bg-slate-950/40 text-center flex flex-col items-center justify-between h-40">
                     {stampUrl ? (
                       <img src={stampUrl} alt="Stamp" className="max-h-20 max-w-full object-contain mb-2" />
                     ) : (
-                      <div className="p-3 bg-gray-100 rounded-full text-gray-400 mb-2">
+                      <div className="p-3 bg-gray-100 rounded-full text-gray-400 dark:text-slate-400 mb-2">
                         <FileImage className="h-6 w-6" />
                       </div>
                     )}
@@ -682,12 +692,12 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
 
                 {/* Signature */}
                 <div className="space-y-2">
-                  <label className="block text-xxs font-bold text-gray-400 uppercase tracking-wider">Director Signature PNG</label>
+                  <label className="block text-xxs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">Director Signature PNG</label>
                   <div className="border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50 dark:bg-slate-950/40 text-center flex flex-col items-center justify-between h-40">
                     {signatureUrl ? (
                       <img src={signatureUrl} alt="Signature" className="max-h-20 max-w-full object-contain mb-2" />
                     ) : (
-                      <div className="p-3 bg-gray-100 rounded-full text-gray-400 mb-2">
+                      <div className="p-3 bg-gray-100 rounded-full text-gray-400 dark:text-slate-400 mb-2">
                         <FileImage className="h-6 w-6" />
                       </div>
                     )}
@@ -713,6 +723,22 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
           </form>
         )}
 
+        {activeTab === 'letter' && <form onSubmit={handleSaveAll} className="space-y-5">
+          <h3 className="font-bold">Shared letter defaults</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Defaults apply to new letters. Existing letters keep their saved details.</p>
+          <label className="block text-sm">Letter type
+            <select value={letterDefaultType} onChange={event => setLetterDefaultType(event.target.value as LetterType)} className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-transparent px-3">
+              {(['Internship Offer','Job Offer','Experience Certificate','Relieving Letter'] as LetterType[]).map(type => <option key={type}>{type}</option>)}
+            </select>
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {Object.entries({ designation: 'Designation', department: 'Department', location: 'Location', stipend: 'Compensation', duration: 'Duration', skillCategory: 'Skill category', reportingTo: 'Reports to', probation: 'Probation', workingDays: 'Working days', workingHours: 'Working hours', noticePeriod: 'Notice period', authorizedSignatory: 'Authorized signatory', reportingInstructions: 'Reporting instructions', conductStatement: 'Conduct statement' }).map(([field, label]) =>
+              <label key={field} className="block text-sm">{label}
+                <input value={String(letterDefaults[letterDefaultType]?.[field as keyof Letter] ?? '')} onChange={event => setLetterDefaults(current => ({ ...current, [letterDefaultType]: { ...current[letterDefaultType], [field]: event.target.value } }))} className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-transparent px-3" />
+              </label>)}
+          </div>
+          <button type="submit" disabled={saving} className="min-h-11 rounded-lg bg-sky-700 px-5 text-sm font-bold text-white disabled:opacity-50">Save Letter Defaults</button>
+        </form>}
       </div>
 
     </div>

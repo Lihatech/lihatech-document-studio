@@ -1,13 +1,14 @@
+import { loadInvoiceDraft, saveInvoiceDraft, errorMessage, getReservedInvoiceNumbers } from '../lib/documentStudio';
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  Plus, 
-  Trash2, 
-  Save, 
-  FileText, 
-  CheckCircle2, 
-  Zap, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  Plus,
+  Trash2,
+  Save,
+  FileText,
+  CheckCircle2,
+  Zap,
   Sparkles,
   RefreshCw,
   GraduationCap,
@@ -23,45 +24,10 @@ interface InvoiceBuilderProps {
   clients: Client[];
   existingInvoices: Invoice[];
   settings: CompanySettings;
-  onSaveInvoice: (invoice: Invoice) => void;
+  onSaveInvoice: (invoice: Invoice) => Promise<boolean>;
   editingInvoice?: Invoice | null;
-  onAddClient?: (client: Client) => void;
+  onAddClient?: (client: Client) => Promise<boolean>;
 }
-
-const SERVICE_TEMPLATES = [
-  {
-    name: 'Website Development',
-    desc: 'Full corporate website — frontend & backend development, responsive design, SEO optimization, and performance tuning.'
-  },
-  {
-    name: 'AI Chatbot Development',
-    desc: 'Custom AI chatbot for customer support, lead generation, business automation, or internal workflow support.'
-  },
-  {
-    name: 'GenAI Application Development',
-    desc: 'LLM-based application using APIs, RAG, vector database, prompt engineering, and custom workflow automation.'
-  },
-  {
-    name: 'Machine Learning Model Development',
-    desc: 'Data preprocessing, model training, evaluation, deployment, and performance reporting.'
-  },
-  {
-    name: 'Data Analytics Dashboard',
-    desc: 'Data cleaning, analysis, visualization, and dashboard creation using web technologies or custom frameworks.'
-  },
-  {
-    name: 'Automation Solution',
-    desc: 'Business process automation using Python, APIs, workflow automation, and custom dashboards.'
-  },
-  {
-    name: 'Internship Training Program',
-    desc: 'Student training program including interactive training sessions, assignments, live project work, mentoring, and evaluation.'
-  },
-  {
-    name: 'Certification Course Delivery',
-    desc: 'Structured course delivery with practical labs, assignments, assessments, and certificate generation.'
-  }
-];
 
 export default function InvoiceBuilder({
   onBack,
@@ -72,11 +38,17 @@ export default function InvoiceBuilder({
   editingInvoice = null,
   onAddClient
 }: InvoiceBuilderProps) {
-  
+
   const [step, setStep] = useState(1);
   const [hasSelectedType, setHasSelectedType] = useState<boolean>(!!editingInvoice);
   const [selectedClient, setSelectedClient] = useState<string>('');
 
+  const SERVICE_TEMPLATES = settings.invoiceServicePresets || [];
+  const [draftReady, setDraftReady] = useState(Boolean(editingInvoice));
+  const [draftError, setDraftError] = useState('');
+  const draftLoaded = React.useRef(false);
+  const latestDraft = React.useRef<Partial<Invoice> | null>(null);
+  const draftQueue = React.useRef(Promise.resolve());
   // Add Client State
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState('');
@@ -86,14 +58,14 @@ export default function InvoiceBuilder({
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newClientAddress, setNewClientAddress] = useState('');
 
-  const handleCreateNewClient = () => {
+  const handleCreateNewClient = async () => {
     if (!newClientName.trim()) {
       alert('Client Name is required!');
       return;
     }
 
     const newClientObj: Client = {
-      id: 'c_' + Date.now(),
+      id: crypto.randomUUID(),
       name: newClientName.trim(),
       companyName: newClientCompany.trim() || '',
       email: newClientEmail.trim(),
@@ -103,7 +75,7 @@ export default function InvoiceBuilder({
     };
 
     if (onAddClient) {
-      onAddClient(newClientObj);
+      if (!await onAddClient(newClientObj)) return;
     }
 
     // Auto-fill form fields
@@ -136,7 +108,7 @@ export default function InvoiceBuilder({
   const [clientPhone, setClientPhone] = useState('');
   const [clientGst, setClientGst] = useState('');
   const [projectName, setProjectName] = useState('');
-  
+
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
@@ -191,50 +163,61 @@ export default function InvoiceBuilder({
     } else {
       // Auto-generate invoice number
       const existingNumbers = existingInvoices.map(i => i.invoiceNumber);
-      setInvoiceNumber(generateInvoiceNumber(existingNumbers));
+      setInvoiceNumber(generateInvoiceNumber([...existingNumbers, ...getReservedInvoiceNumbers()]));
     }
   }, [editingInvoice, existingInvoices]);
 
-  // Load saved draft if any (only if not editing an existing invoice)
+  // Drafts belong to the signed-in user and are shared across their devices.
   useEffect(() => {
-    if (!editingInvoice) {
-      const draft = localStorage.getItem('lt_invoice_draft');
-      if (draft) {
-        try {
-          const parsed = JSON.parse(draft);
-          setInvoiceType(parsed.invoiceType || 'service');
-          setClientName(parsed.clientName || '');
-          setClientCompanyName(parsed.clientCompanyName || '');
-          setClientAddress(parsed.clientAddress || '');
-          setClientEmail(parsed.clientEmail || '');
-          setClientPhone(parsed.clientPhone || '');
-          setClientGst(parsed.clientGst || '');
-          setProjectName(parsed.projectName || '');
-          setItems(parsed.items || [{ id: 'item_1', serviceName: '', description: '', qty: 1, rate: 0, amount: 0 }]);
-        } catch (e) {
-          console.error('Failed to load invoice draft', e);
-        }
-      }
-    }
+    if (editingInvoice) { setDraftReady(true); return; }
+    let active = true;
+    loadInvoiceDraft().then(parsed => {
+      if (!active) return;
+      draftLoaded.current = true;
+      if (!parsed) return;
+      setInvoiceType(parsed.invoiceType || 'service');
+      setClientName(parsed.clientName || ''); setClientCompanyName(parsed.clientCompanyName || '');
+      setClientAddress(parsed.clientAddress || ''); setClientEmail(parsed.clientEmail || '');
+      setClientPhone(parsed.clientPhone || ''); setClientGst(parsed.clientGst || '');
+      setProjectName(parsed.projectName || '');
+      if (parsed.items) setItems(parsed.items);
+      if (parsed.invoiceDate) setInvoiceDate(parsed.invoiceDate);
+      if (parsed.dueDate) setDueDate(parsed.dueDate);
+      if (parsed.currency) setCurrency(parsed.currency);
+      if (parsed.gstPercent !== undefined) setGstPercent(parsed.gstPercent);
+      if (parsed.discount !== undefined) setDiscount(parsed.discount);
+      if (parsed.amountPaid !== undefined) setAmountPaid(parsed.amountPaid);
+      if (parsed.paymentTerms !== undefined) setPaymentTerms(parsed.paymentTerms);
+      if (parsed.paymentMethod !== undefined) setPaymentMethod(parsed.paymentMethod);
+      if (parsed.notes !== undefined) setNotes(parsed.notes);
+      if (parsed.status) setStatus(parsed.status);
+    }).catch(error => { if (active) setDraftError(errorMessage(error)); })
+      .finally(() => { if (active) setDraftReady(true); });
+    return () => { active = false; };
   }, [editingInvoice]);
 
-  // Save Draft automatically
-  const saveDraftToStorage = (updatedItems?: InvoiceItem[], updatedType?: 'service' | 'course') => {
-    if (!editingInvoice) {
-      const draft = {
-        clientName,
-        clientCompanyName,
-        clientAddress,
-        clientEmail,
-        clientPhone,
-        clientGst,
-        projectName,
-        items: updatedItems || items,
-        invoiceType: updatedType || invoiceType
-      };
-      localStorage.setItem('lt_invoice_draft', JSON.stringify(draft));
-    }
-  };
+  useEffect(() => {
+    if (editingInvoice || !draftReady || !draftLoaded.current) return;
+    const draft = { clientName, clientCompanyName, clientAddress, clientEmail, clientPhone, clientGst,
+        projectName, items, invoiceType, invoiceDate, dueDate, currency, gstPercent, discount, amountPaid,
+        paymentTerms, paymentMethod, notes, status };
+    latestDraft.current = draft;
+    const timer = setTimeout(() => {
+      draftQueue.current = draftQueue.current.catch(() => {}).then(() => saveInvoiceDraft(draft))
+        .then(() => setDraftError('')).catch(error => setDraftError(errorMessage(error)));
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [editingInvoice, draftReady, clientName, clientCompanyName, clientAddress, clientEmail, clientPhone,
+    clientGst, projectName, items, invoiceType, invoiceDate, dueDate, currency, gstPercent, discount,
+    amountPaid, paymentTerms, paymentMethod, notes, status]);
+
+  // Flush the last edit when navigating before the debounce expires.
+  useEffect(() => () => {
+    if (editingInvoice || !draftLoaded.current || !latestDraft.current) return;
+    const draft = latestDraft.current;
+    draftQueue.current = draftQueue.current.catch(() => {}).then(() => saveInvoiceDraft(draft))
+      .catch(error => console.warn('Could not save the invoice draft on navigation.', error));
+  }, [editingInvoice]);
 
   const handleInvoiceTypeChange = (type: 'service' | 'course') => {
     setInvoiceType(type);
@@ -247,7 +230,7 @@ export default function InvoiceBuilder({
       }));
       setItems(updated);
     }
-    saveDraftToStorage(updated, type);
+
   };
 
   const selectModuleType = (type: 'service' | 'course') => {
@@ -277,7 +260,7 @@ export default function InvoiceBuilder({
       setClientEmail(client.email);
       setClientPhone(client.phone);
       setClientGst(client.gstNumber || '');
-      saveDraftToStorage();
+
     }
   };
 
@@ -303,7 +286,7 @@ export default function InvoiceBuilder({
       return item;
     });
     setItems(updated);
-    saveDraftToStorage(updated);
+
   };
 
   const addServiceRow = () => {
@@ -367,7 +350,7 @@ export default function InvoiceBuilder({
   };
 
   // Save Invoice action
-  const handleSaveInvoice = () => {
+  const handleSaveInvoice = async () => {
     // Basic validation
     if (!clientName.trim()) {
       alert('Client Name is required!');
@@ -386,7 +369,7 @@ export default function InvoiceBuilder({
     }
 
     const savedInvoice: Invoice = {
-      id: editingInvoice ? editingInvoice.id : 'inv_' + Date.now(),
+      id: editingInvoice ? editingInvoice.id : crypto.randomUUID(),
       invoiceNumber,
       clientName,
       clientCompanyName,
@@ -416,10 +399,15 @@ export default function InvoiceBuilder({
       createdAt: editingInvoice ? editingInvoice.createdAt : new Date().toISOString()
     };
 
-    onSaveInvoice(savedInvoice);
+    if (!await onSaveInvoice(savedInvoice)) return;
     // Clear draft if new
-    if (!editingInvoice) localStorage.removeItem('lt_invoice_draft');
+    if (!editingInvoice) {
+      try { await draftQueue.current; await saveInvoiceDraft(null); }
+      catch (error) { alert(`Invoice saved, but the draft could not be cleared: ${errorMessage(error)}`); }
+    }
   };
+
+  if (!draftReady) return <p role="status">Loading your invoice draft…</p>;
 
   if (!hasSelectedType) {
     return (
@@ -427,16 +415,18 @@ export default function InvoiceBuilder({
         <div className="flex items-center space-x-3">
           <button
             onClick={onBack}
-            className="p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl cursor-pointer transition-all"
+            aria-label="Back to invoices"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl cursor-pointer transition-all"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <span className="text-xxs font-bold text-amber-600 uppercase tracking-widest block">LihaTech Creator</span>
-            <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white">Choose Invoice Type</h2>
+            <span className="text-xxs font-bold text-amber-600 uppercase tracking-widest block">Invoices</span>
+            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">Choose invoice type</h1>
           </div>
         </div>
 
+        {draftError && <p role="alert" className="text-sm text-red-600">Draft storage: {draftError}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Option 1: Product / Service */}
           <button
@@ -500,31 +490,34 @@ export default function InvoiceBuilder({
 
   return (
     <div className="space-y-8 pb-12 animate-fade-in">
-      
+
+      {draftError && <p role="alert" className="text-sm text-red-600">Draft could not be saved: {draftError}</p>}
       {/* Header controls bar */}
-      <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-850">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">
         <div className="flex items-center space-x-3">
           <button
             onClick={handleBackClick}
-            className="p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl cursor-pointer transition-all"
+            aria-label={editingInvoice ? "Back to invoices" : "Change invoice type"}
+            title={editingInvoice ? "Back to invoices" : "Change invoice type"}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl cursor-pointer transition-all"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <span className="text-xxs font-bold text-amber-600 uppercase tracking-widest block">LihaTech Creator</span>
-            <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">
-              {editingInvoice ? 'Modify Invoice Record' : 'Create Business Invoice'}
-            </h2>
+            <span className="text-xxs font-bold text-amber-600 uppercase tracking-widest block">Invoices</span>
+            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+              {editingInvoice ? 'Edit invoice' : 'Create invoice'}
+            </h1>
           </div>
         </div>
-        
+
         {/* Step Indicator Bullets */}
         <div className="flex items-center space-x-2">
           {[1, 2, 3, 4, 5].map((s) => (
             <button
               key={s}
               onClick={() => {
-                saveDraftToStorage();
+
                 setStep(s);
               }}
               className={`h-7 px-3 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
@@ -543,10 +536,10 @@ export default function InvoiceBuilder({
 
       {/* Main Multi-Step Form Wrapper */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* LEFT 2 COLS: The Form Fields */}
         <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-          
+
           {/* STEP 1: CLIENT DETAILS */}
           {step === 1 && (
             <div className="space-y-6">
@@ -564,7 +557,7 @@ export default function InvoiceBuilder({
                     type="text"
                     required
                     value={clientName}
-                    onChange={(e) => { setClientName(e.target.value); saveDraftToStorage(); }}
+                    onChange={(e) => { setClientName(e.target.value);  }}
                     placeholder={invoiceType === 'course' ? "Enter student or candidate full name" : "Enter candidate or client main contact"}
                     className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white"
                   />
@@ -575,7 +568,7 @@ export default function InvoiceBuilder({
                     <input
                       type="text"
                       value={clientCompanyName}
-                      onChange={(e) => { setClientCompanyName(e.target.value); saveDraftToStorage(); }}
+                      onChange={(e) => { setClientCompanyName(e.target.value);  }}
                       placeholder="e.g. Shravani IT Solutions"
                       className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white"
                     />
@@ -591,7 +584,7 @@ export default function InvoiceBuilder({
                   <input
                     type="email"
                     value={clientEmail}
-                    onChange={(e) => { setClientEmail(e.target.value); saveDraftToStorage(); }}
+                    onChange={(e) => { setClientEmail(e.target.value);  }}
                     placeholder={invoiceType === 'course' ? "student@example.com" : "client@shravanisolutions.com"}
                     className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white"
                   />
@@ -603,7 +596,7 @@ export default function InvoiceBuilder({
                   <input
                     type="text"
                     value={clientPhone}
-                    onChange={(e) => { setClientPhone(e.target.value); saveDraftToStorage(); }}
+                    onChange={(e) => { setClientPhone(e.target.value);  }}
                     placeholder="+91 94220 XXXXX"
                     className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white"
                   />
@@ -617,7 +610,7 @@ export default function InvoiceBuilder({
                 <textarea
                   rows={3}
                   value={clientAddress}
-                  onChange={(e) => { setClientAddress(e.target.value); saveDraftToStorage(); }}
+                  onChange={(e) => { setClientAddress(e.target.value);  }}
                   placeholder={invoiceType === 'course' ? "Enter full physical address" : "Enter full physical address for tax calculation"}
                   className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white resize-none"
                 />
@@ -630,7 +623,7 @@ export default function InvoiceBuilder({
                     <input
                       type="text"
                       value={clientGst}
-                      onChange={(e) => { setClientGst(e.target.value); saveDraftToStorage(); }}
+                      onChange={(e) => { setClientGst(e.target.value);  }}
                       placeholder="e.g. 27AABCS5564K2Z9"
                       className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white"
                     />
@@ -643,7 +636,7 @@ export default function InvoiceBuilder({
                   <input
                     type="text"
                     value={projectName}
-                    onChange={(e) => { setProjectName(e.target.value); saveDraftToStorage(); }}
+                    onChange={(e) => { setProjectName(e.target.value);  }}
                     placeholder={invoiceType === 'course' ? "e.g. Full-Stack Web Development Mastery Program" : "e.g. E-Commerce Website & Chatbot"}
                     className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all text-gray-900 dark:text-white"
                   />
@@ -681,7 +674,7 @@ export default function InvoiceBuilder({
                     </button>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Currency Type</label>
                   <select
@@ -748,8 +741,8 @@ export default function InvoiceBuilder({
               {/* Dynamic Rows Container */}
               <div className="space-y-6">
                 {items.map((item, idx) => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="p-5 rounded-2xl border border-gray-100 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-950/30 space-y-4"
                   >
                     {/* Row Header with index and delete */}
@@ -757,7 +750,7 @@ export default function InvoiceBuilder({
                       <span className="text-xxs font-extrabold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-md border border-amber-500/10">
                         SERVICE ITEM #{idx + 1}
                       </span>
-                      
+
                       {/* Service Autofill dropdown */}
                       <div className="flex items-center space-x-2">
                         <select
@@ -797,7 +790,7 @@ export default function InvoiceBuilder({
                           type="text"
                           required
                           value={item.serviceName}
-                          onChange={(e) => { updateItemField(item.id, 'serviceName', e.target.value); saveDraftToStorage(); }}
+                          onChange={(e) => { updateItemField(item.id, 'serviceName', e.target.value);  }}
                           placeholder="e.g. Website Engineering Project"
                           className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 text-gray-900 dark:text-white"
                         />
@@ -818,7 +811,7 @@ export default function InvoiceBuilder({
                         <textarea
                           rows={2}
                           value={item.description}
-                          onChange={(e) => { updateItemField(item.id, 'description', e.target.value); saveDraftToStorage(); }}
+                          onChange={(e) => { updateItemField(item.id, 'description', e.target.value);  }}
                           placeholder={invoiceType === 'course' ? "e.g. Structured course delivery with practical labs, assignments, assessments..." : "e.g. Completed wireframing, content integration, domain pointing, SSL configuration..."}
                           className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 text-gray-900 dark:text-white resize-none"
                         />
@@ -830,7 +823,7 @@ export default function InvoiceBuilder({
                             type="number"
                             min="0"
                             value={item.rate}
-                            onChange={(e) => { updateItemField(item.id, 'rate', parseFloat(e.target.value) || 0); saveDraftToStorage(); }}
+                            onChange={(e) => { updateItemField(item.id, 'rate', parseFloat(e.target.value) || 0);  }}
                             className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2.5 text-xs outline-none text-right text-gray-900 dark:text-white font-semibold font-mono"
                           />
                         </div>
@@ -842,7 +835,7 @@ export default function InvoiceBuilder({
                               type="number"
                               min="1"
                               value={item.qty}
-                              onChange={(e) => { updateItemField(item.id, 'qty', parseInt(e.target.value, 10) || 1); saveDraftToStorage(); }}
+                              onChange={(e) => { updateItemField(item.id, 'qty', parseInt(e.target.value, 10) || 1);  }}
                               className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs outline-none text-center text-gray-900 dark:text-white font-semibold"
                             />
                           </div>
@@ -852,7 +845,7 @@ export default function InvoiceBuilder({
                               type="number"
                               min="0"
                               value={item.rate}
-                              onChange={(e) => { updateItemField(item.id, 'rate', parseFloat(e.target.value) || 0); saveDraftToStorage(); }}
+                              onChange={(e) => { updateItemField(item.id, 'rate', parseFloat(e.target.value) || 0);  }}
                               className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs outline-none text-right text-gray-900 dark:text-white font-semibold"
                             />
                           </div>
@@ -899,7 +892,7 @@ export default function InvoiceBuilder({
                     <option value="28">28% GST (Luxury Slabs)</option>
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Cash Discount</label>
                   <input
@@ -946,10 +939,10 @@ export default function InvoiceBuilder({
                 <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-1">Step 5: Inspect & Audit Document</h3>
                 <p className="text-xs text-gray-400">Perform final visual check on layout spacing, GST additions, and recipient profiles before saving.</p>
               </div>
-              
+
               {/* Render Preview */}
               <div className="border border-gray-150 dark:border-slate-800 rounded-3xl p-2 bg-white dark:bg-slate-900">
-                <InvoicePreview 
+                <InvoicePreview
                   invoice={{
                     id: 'preview',
                     invoiceNumber,
@@ -978,7 +971,7 @@ export default function InvoiceBuilder({
                     notes,
                     paymentMethod,
                     createdAt: new Date().toISOString()
-                  }} 
+                  }}
                   settings={settings}
                   showActions={false}
                 />
@@ -991,16 +984,16 @@ export default function InvoiceBuilder({
             <button
               type="button"
               disabled={step === 1}
-              onClick={() => { saveDraftToStorage(); setStep(step - 1); }}
+              onClick={() => {  setStep(step - 1); }}
               className="px-4 py-3 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 transition-colors"
             >
               Previous Step
             </button>
-            
+
             {step < 5 ? (
               <button
                 type="button"
-                onClick={() => { saveDraftToStorage(); setStep(step + 1); }}
+                onClick={() => {  setStep(step + 1); }}
                 className="flex items-center space-x-1 px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all"
               >
                 <span>Proceed</span>
@@ -1010,10 +1003,10 @@ export default function InvoiceBuilder({
               <button
                 type="button"
                 onClick={handleSaveInvoice}
-                className="flex items-center space-x-1.5 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-lg cursor-pointer transition-all"
+                className="studio-button studio-button-primary text-sm"
               >
                 <Save className="h-4 w-4" />
-                <span>Save Invoice & Exit</span>
+                <span>Save invoice</span>
               </button>
             )}
           </div>
@@ -1044,7 +1037,7 @@ export default function InvoiceBuilder({
                 <span>Final Due Date</span>
                 <span className="text-slate-800 dark:text-slate-200 font-bold">{dueDate}</span>
               </div>
-              
+
               <div className="border-t border-dashed border-gray-200 dark:border-slate-800 pt-4 space-y-2.5">
                 <div className="flex justify-between text-gray-500">
                   <span>Subtotal Value</span>
@@ -1052,7 +1045,7 @@ export default function InvoiceBuilder({
                     {currency === 'INR' ? '₹' : currency === 'USD' ? '$' : '€'} {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                
+
                 {discount > 0 && (
                   <div className="flex justify-between text-rose-600">
                     <span>Campaign Discount</span>
@@ -1061,7 +1054,7 @@ export default function InvoiceBuilder({
                     </span>
                   </div>
                 )}
-                
+
                 <div className="flex justify-between text-gray-500">
                   <span>Taxable Basis</span>
                   <span className="font-mono text-slate-900 dark:text-slate-100">

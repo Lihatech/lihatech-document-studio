@@ -20,7 +20,7 @@ interface OldLettersProps {
   letters: Letter[];
   settings: CompanySettings;
   onEditLetter: (letter: Letter) => void;
-  onDeleteLetter: (id: string) => void;
+  onDeleteLetter: (id: string) => Promise<boolean>;
   navigate: (path: string) => void;
 }
 
@@ -48,8 +48,8 @@ export default function OldLetters({
     });
   }, [letters, search]);
 
-  const handleDelete = (id: string) => {
-    onDeleteLetter(id);
+  const handleDelete = async (id: string) => {
+    if (!await onDeleteLetter(id)) return;
     setConfirmDeleteId(null);
   };
 
@@ -76,14 +76,14 @@ export default function OldLetters({
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-6xl mx-auto py-6" id="old-letters-dashboard">
+    <div className="space-y-6 animate-fade-in py-2" id="old-letters-dashboard">
       
       {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
             <Mail className="h-6 w-6 text-indigo-500" />
-            <span>Official Letter Records</span>
+            <span>Saved letters</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Search, preview, and print archived Internship Offer Letters, Job Offer Letters, Experience Certificates, and Relieving Letters.
@@ -91,10 +91,10 @@ export default function OldLetters({
         </div>
         <button
           onClick={() => navigate('/letter/new')}
-          className="inline-flex items-center space-x-2 px-5 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors"
+          className="studio-button studio-button-primary text-sm"
         >
           <Plus className="h-4 w-4" />
-          <span>New HR Letter</span>
+          <span>Create letter</span>
         </button>
       </div>
 

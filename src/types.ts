@@ -23,6 +23,9 @@ export interface CompanySettings {
   certTemplate: 'royal' | 'emerald' | 'academic' | 'modern-blue';
   defaultCertText?: string;
   certificatePartners?: CertificatePartnerProfile[];
+  certificateCategories?: string[];
+  invoiceServicePresets?: { name: string; desc: string }[];
+  letterDefaults?: Partial<Record<LetterType, Partial<Letter>>>;
 }
 
 export interface CertificatePartnerProfile {

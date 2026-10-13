@@ -1,0 +1,9 @@
+# Document Studio module UI
+
+The document module shares the LMS admin sidebar, header, blue brand actions, surfaces and typography. The overview shows actual saved document totals and recent document activity from StudioData, with clear create/view actions for invoices, certificates, letters and payslips. Certificate bulk generation remains directly accessible. Document settings belongs to this module.
+
+Every module page has breadcrumbs, section navigation and a deterministic parent link: creation/editing and bulk certificate pages return to their saved registry; registries and settings return to Document Studio; the overview returns to the LMS overview. Native anchors preserve opening links in a new tab. Leaving a builder through module navigation clears its editing pointer, so starting from the overview creates a new record. Route changes scroll to the top and focus the page content, and a skip link bypasses navigation.
+
+The mobile sidebar supports Escape, focus trapping, focus restoration and scroll locking. Resizing to desktop closes an open mobile drawer. Class-based dark mode follows the existing theme toggle and improves header/settings contrast. No new dependency, database change or document export/template change is needed for this redesign.
+
+Validation: npm run lint, npm run build and node tests/forms.mjs cover rendering and navigation logic. Browser review of an isolated temporary fixture verified desktop layout at 1440px, mobile layout at 375px, no page-width overflow, category form navigation, returning to saved certificates, settings navigation, dark contrast, focus wrapping and Escape dismissal. The fixture was removed; actual account authentication, data writes and exported PDFs were not exercised by that UI review. Persistence/access regression tests remain available separately.

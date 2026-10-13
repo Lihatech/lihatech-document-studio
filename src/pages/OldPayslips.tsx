@@ -21,7 +21,7 @@ interface OldPayslipsProps {
   payslips: Payslip[];
   settings: CompanySettings;
   onEditPayslip: (payslip: Payslip) => void;
-  onDeletePayslip: (id: string) => void;
+  onDeletePayslip: (id: string) => Promise<boolean>;
   navigate: (path: string) => void;
 }
 
@@ -50,8 +50,8 @@ export default function OldPayslips({
     });
   }, [payslips, search]);
 
-  const handleDelete = (id: string) => {
-    onDeletePayslip(id);
+  const handleDelete = async (id: string) => {
+    if (!await onDeletePayslip(id)) return;
     setConfirmDeleteId(null);
   };
 
@@ -65,25 +65,25 @@ export default function OldPayslips({
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-6xl mx-auto py-6" id="old-payslips-dashboard">
+    <div className="space-y-6 animate-fade-in py-2" id="old-payslips-dashboard">
       
       {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
             <Receipt className="h-6 w-6 text-teal-500" />
-            <span>Salary Slip Archives</span>
+            <span>Saved payslips</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Formulate, track, and export GST-exempt corporate employee salary slips.
+            Find saved payslips, preview employee salary details, and export records.
           </p>
         </div>
         <button
           onClick={() => navigate('/payslip/new')}
-          className="inline-flex items-center space-x-2 px-5 py-2.5 bg-teal-700 hover:bg-teal-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors"
+          className="studio-button studio-button-primary text-sm"
         >
           <Plus className="h-4 w-4" />
-          <span>Generate New Payslip</span>
+          <span>Create payslip</span>
         </button>
       </div>
 

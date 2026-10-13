@@ -23,6 +23,16 @@ export const CERTIFICATE_TYPE_PRESETS: CertificateTypePreset[] = [
   { value: 'Appreciation Certificate', label: 'Appreciation Certificate', defaultText: 'in appreciation of outstanding contribution and dedication to' }
 ];
 
+export function getCertificateCategoryOptions(saved: string[] = [], current = '') {
+  const values = [...CERTIFICATE_TYPE_PRESETS.map(option => option.value), ...saved, current].filter(Boolean);
+  const seen = new Set<string>();
+  return values.filter(value => {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized); return true;
+  }).map(value => ({ value, label: value }));
+}
+
 export const COMPLETION_PRESETS: CompletionPreset[] = [
   {
     label: 'Outstanding Performer',

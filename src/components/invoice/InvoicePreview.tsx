@@ -183,7 +183,7 @@ export default function InvoicePreview({ invoice, settings, onClose, showActions
           </div>
           
           <div className="text-[11px] text-slate-800 font-extrabold leading-tight" style={{ color: '#1E293B' }}>
-            <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>Director LihaTech</p>
+            <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>{settings.directorDesignation}</p>
             <p className="text-slate-500 font-medium italic mt-0.5" style={{ color: '#64748B' }}>Business Development | Client Relations</p>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { parseAnnualCompensation } from '../../utils/compensation';
 import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet, Font } from '@react-pdf/renderer';
 import { Letter, CompanySettings } from '../../types';
@@ -419,12 +420,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
     return '';
   };
 
-  const parseCTC = (ctcStr: string): number => {
-    if (!ctcStr) return 450000;
-    const cleaned = ctcStr.replace(/[^0-9]/g, '');
-    const val = Number(cleaned);
-    return val > 0 ? val : 450000;
-  };
+
 
   const formatRupees = (val: number) => {
     return '₹' + Math.round(val).toLocaleString('en-IN');
@@ -475,7 +471,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
     </View>
   );
 
-  const annualCTC = parseCTC(letter.stipend || '₹4,50,000 / annum');
+  const annualCTC = parseAnnualCompensation(letter.stipend || '');
   const monthlyCTC = Math.round(annualCTC / 12);
   
   let employerPF = annualCTC >= 250000 ? 1800 : 0;
@@ -565,7 +561,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
             </Text>
             
             <Text style={styles.paragraph}>
-              You will be based at our <Text style={styles.boldParagraph}>{letter.location || 'Kolhapur Office'}</Text>.
+              You will be based at our <Text style={styles.boldParagraph}>{letter.location || ''}</Text>.
             </Text>
 
             <Text style={styles.paragraph}>
@@ -597,11 +593,11 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
           <View>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>1. Working Hours: </Text>
-              Your normal working hours will be from <Text style={{fontWeight: 'bold'}}>{letter.workingHours || '9:00 AM to 6:00 PM'}</Text>, from <Text style={{fontWeight: 'bold'}}>{letter.workingDays || 'Monday to Saturday'}</Text>. Depending on project, training or client requirements, you may occasionally be required to work beyond normal working hours.
+              Your normal working hours will be from <Text style={{fontWeight: 'bold'}}>{letter.workingHours || ''}</Text>, from <Text style={{fontWeight: 'bold'}}>{letter.workingDays || ''}</Text>. Depending on project, training or client requirements, you may occasionally be required to work beyond normal working hours.
             </Text>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>2. Probation Period: </Text>
-              You will be on probation for a period of <Text style={{fontWeight: 'bold'}}>{letter.probation || 'six months'}</Text> from your date of joining. Your confirmation will be based on satisfactory performance, conduct and attendance and will be communicated to you in writing. The probation period may be extended if additional performance evaluation is required.
+              You will be on probation for a period of <Text style={{fontWeight: 'bold'}}>{letter.probation || ''}</Text> from your date of joining. Your confirmation will be based on satisfactory performance, conduct and attendance and will be communicated to you in writing. The probation period may be extended if additional performance evaluation is required.
             </Text>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>3. Salary and Benefits: </Text>
@@ -617,7 +613,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
             </Text>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>6. Place of Work: </Text>
-              Your initial place of work will be <Text style={{fontWeight: 'bold'}}>{letter.location || 'Kolhapur Office'}</Text>. Depending on business or project requirements, you may be assigned to another project, department, client location, remote working arrangement or office location.
+              Your initial place of work will be <Text style={{fontWeight: 'bold'}}>{letter.location || ''}</Text>. Depending on business or project requirements, you may be assigned to another project, department, client location, remote working arrangement or office location.
             </Text>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>7. Confidentiality: </Text>
@@ -657,7 +653,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
           <View>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>13. Notice Period: </Text>
-              During probation, either party may terminate the employment by giving <Text style={{fontWeight: 'bold'}}>15 days’ written notice</Text> or salary in lieu of notice. After confirmation, either party may terminate the employment by giving <Text style={{fontWeight: 'bold'}}>{letter.noticePeriod || '30 days'}’ written notice</Text> or salary in lieu of notice, subject to Company approval and applicable law. The Company may terminate employment in cases of serious misconduct, fraud, data theft, breach of confidentiality, harassment, document falsification or wilful damage to Company or client property.
+              During probation, either party may terminate the employment by giving <Text style={{fontWeight: 'bold'}}>15 days’ written notice</Text> or salary in lieu of notice. After confirmation, either party may terminate the employment by giving <Text style={{fontWeight: 'bold'}}>{letter.noticePeriod || ''}’ written notice</Text> or salary in lieu of notice, subject to Company approval and applicable law. The Company may terminate employment in cases of serious misconduct, fraud, data theft, breach of confidentiality, harassment, document falsification or wilful damage to Company or client property.
             </Text>
             <Text style={styles.termItem}>
               <Text style={styles.termTitle}>14. Resignation and Handover: </Text>
@@ -776,12 +772,12 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
                 ) : null}
               </View>
 
-              {letter.authorizedSignatory === 'Yameen Hakim' || letter.authorizedSignatory === 'Director|Business Operations' ? (
-                <Text style={styles.authorizedSignatoryName}>Director|Business Operations</Text>
+              {letter.authorizedSignatory === settings.directorDesignation ? (
+                <Text style={styles.authorizedSignatoryName}>{settings.directorDesignation}</Text>
               ) : (
                 <>
                   <Text style={styles.authorizedSignatoryName}>{letter.authorizedSignatory}</Text>
-                  <Text style={styles.authorizedSignatoryTitle}>Director|Business Operations</Text>
+                  <Text style={styles.authorizedSignatoryTitle}>{settings.directorDesignation}</Text>
                 </>
               )}
             </View>
@@ -885,7 +881,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
             <View style={styles.candidateSignatureBlock}>
               <Text style={styles.signatureLineText}>Candidate Signature: __________________</Text>
               <Text style={styles.signatureLineText}>Candidate Name: <Text style={styles.signatureNormalText}>{letter.candidateName}</Text></Text>
-              <Text style={styles.signatureLineText}>Place: <Text style={styles.signatureNormalText}>{getCandidateLocation() || letter.location || '___________________________'}</Text></Text>
+              <Text style={styles.signatureLineText}>Place: <Text style={styles.signatureNormalText}>{getCandidateLocation() || letter.location || ''}</Text></Text>
             </View>
 
             <View style={styles.authorizedSignatureBlock}>
@@ -897,12 +893,12 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
                 ) : null}
               </View>
 
-              {letter.authorizedSignatory === 'Yameen Hakim' || letter.authorizedSignatory === 'Director|Business Operations' ? (
-                <Text style={styles.authorizedSignatoryName}>Director|Business Operations</Text>
+              {letter.authorizedSignatory === settings.directorDesignation ? (
+                <Text style={styles.authorizedSignatoryName}>{settings.directorDesignation}</Text>
               ) : (
                 <>
                   <Text style={styles.authorizedSignatoryName}>{letter.authorizedSignatory}</Text>
-                  <Text style={styles.authorizedSignatoryTitle}>Director|Business Operations</Text>
+                  <Text style={styles.authorizedSignatoryTitle}>{settings.directorDesignation}</Text>
                 </>
               )}
             </View>

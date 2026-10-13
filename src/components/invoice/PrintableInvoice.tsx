@@ -231,7 +231,7 @@ export default function PrintableInvoice({ invoice, settings }: PrintableInvoice
                     )}
                   </div>
                   <div className="text-[11px] text-slate-800 font-extrabold leading-tight">
-                    <p className="text-slate-950 font-black text-xs">Director LihaTech</p>
+                    <p className="text-slate-950 font-black text-xs">{settings.directorDesignation}</p>
                     <p className="text-slate-500 font-medium italic mt-0.5">Business Development | Client Relations</p>
                   </div>
                 </div>

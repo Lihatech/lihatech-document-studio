@@ -31,7 +31,7 @@ interface OldCertificatesProps {
   settings: CompanySettings;
   onSelectCertificate: (cert: Certificate) => void;
   onEditCertificate: (cert: Certificate) => void;
-  onDeleteCertificate: (id: string | string[]) => void;
+  onDeleteCertificate: (id: string | string[]) => Promise<boolean>;
   navigate: (path: string) => void;
 }
 
@@ -140,9 +140,9 @@ export default function OldCertificates({
     setConfirmDeleteIds(ids);
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (confirmDeleteIds) {
-      onDeleteCertificate(confirmDeleteIds);
+      if (!await onDeleteCertificate(confirmDeleteIds)) return;
       
       // If we deleted the current active bulk group, close it
       if (selectedBulkGroup) {
@@ -357,37 +357,30 @@ export default function OldCertificates({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in py-4 max-w-5xl mx-auto" id="old-certificates-page">
+    <div className="space-y-6 animate-fade-in py-2" id="old-certificates-page">
       
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">
         <div>
-          <span className="text-xxs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest block">Certificate Registry</span>
-          <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">Issued Certificate Archive</h2>
+          <span className="text-xxs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest block">Certificates</span>
+          <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Saved certificates</h1>
         </div>
         
         {/* Sub Navigation Button Group */}
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => navigate('/certificate/old')}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#6D1F2A] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-default transition-all shadow-sm"
-          >
-            <Award className="h-3.5 w-3.5" />
-            <span>Issued Registry</span>
-          </button>
-          <button
             onClick={() => navigate('/certificate/new')}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-[#6D1F2A] hover:text-white dark:hover:bg-[#6D1F2A] text-slate-700 dark:text-slate-300 font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all"
+            className="studio-button studio-button-primary text-sm"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Create New</span>
+            <span>Create certificate</span>
           </button>
           <button
             onClick={() => navigate('/certificate/bulk')}
             className="flex items-center space-x-1.5 px-3.5 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-[#6D1F2A] hover:text-white dark:hover:bg-[#6D1F2A] text-slate-700 dark:text-slate-300 font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Bulk Generation</span>
+            <span>Bulk generation</span>
           </button>
         </div>
       </div>
@@ -447,7 +440,7 @@ export default function OldCertificates({
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-extrabold text-gray-900 dark:text-white max-w-[200px] truncate">{candidatesLabel}</div>
-                          <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">Bulk Generation Batch</div>
+                          <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">Bulk generation Batch</div>
                         </td>
                         <td className="px-6 py-4 max-w-[200px] truncate">{group.programName}</td>
                         <td className="px-6 py-4 text-slate-500">{group.certificateType}</td>

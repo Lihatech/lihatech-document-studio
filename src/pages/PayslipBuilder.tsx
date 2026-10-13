@@ -1,7 +1,7 @@
+import type { EmployeeProfile } from '../lib/documentStudio';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  ArrowLeft, 
   Save, 
   Receipt,
   User,
@@ -24,198 +24,20 @@ import PayslipPreview from '../components/payslip/PayslipPreview';
 interface PayslipBuilderProps {
   onBack: () => void;
   settings: CompanySettings;
-  onSavePayslip: (payslip: Payslip) => void;
+  employees: EmployeeProfile[];
+  onSaveEmployees: (employees: EmployeeProfile[]) => Promise<boolean>;
+  onSavePayslip: (payslip: Payslip) => Promise<boolean>;
   editingPayslip?: Payslip | null;
   navigate: (path: string) => void;
 }
 
-interface SampleEmployee {
-  employeeName: string;
-  employeeId: string;
-  designation: string;
-  department: string;
-  pan: string;
-  dateOfJoining: string;
-  bankAccName: string;
-  location: string;
-  pfAccountNumber: string;
-  uan: string;
-  daysInMonth: number;
-  effectiveWorkDays: number;
-  lop: number;
-  basicSalary: number;
-  hra: number;
-  allowances: number;
-  pf: number;
-  professionalTax: number;
-}
 
-const SAMPLE_EMPLOYEES: SampleEmployee[] = [
-  {
-    employeeName: 'Shoaib Raza Qaisar Ali',
-    employeeId: 'HPC-16190',
-    designation: 'GENAI Engineer',
-    department: 'Engineering',
-    pan: 'BANPA9714P',
-    dateOfJoining: '2/11/2022',
-    bankAccName: '31868452086/SBI',
-    location: 'Gurgaon',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 28,
-    effectiveWorkDays: 28,
-    lop: 0,
-    basicSalary: 60000,
-    hra: 24000,
-    allowances: 10000,
-    pf: 0,
-    professionalTax: 200
-  },
-  {
-    employeeName: 'Shahid Shaikh',
-    employeeId: 'LT-EMP-001',
-    designation: 'Manager',
-    department: 'Management',
-    pan: 'AMSPW3332S',
-    dateOfJoining: '01/01/2021',
-    bankAccName: '50100482931/HDFC',
-    location: 'Mumbai',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 30,
-    effectiveWorkDays: 30,
-    lop: 0,
-    basicSalary: 80000,
-    hra: 32000,
-    allowances: 15000,
-    pf: 1800,
-    professionalTax: 200
-  },
-  {
-    employeeName: 'Rakesh Telang',
-    employeeId: 'LT-EMP-108',
-    designation: 'Developer',
-    department: 'Engineering',
-    pan: 'BAMPW7712T',
-    dateOfJoining: '12/04/2023',
-    bankAccName: '20349812401/ICICI',
-    location: 'Gurgaon',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 30,
-    effectiveWorkDays: 30,
-    lop: 0,
-    basicSalary: 50000,
-    hra: 20000,
-    allowances: 8000,
-    pf: 1800,
-    professionalTax: 200
-  },
-  {
-    employeeName: 'Samrudhi Bartakke',
-    employeeId: 'LT-EMP-215',
-    designation: 'Intern',
-    department: 'Web Development',
-    pan: 'DMPPW4412B',
-    dateOfJoining: '01/06/2026',
-    bankAccName: '32984152031/SBI',
-    location: 'Pune',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 30,
-    effectiveWorkDays: 30,
-    lop: 0,
-    basicSalary: 15000,
-    hra: 0,
-    allowances: 0,
-    pf: 0,
-    professionalTax: 0
-  },
-  {
-    employeeName: 'Rajkuwar',
-    employeeId: 'LT-EMP-007',
-    designation: 'HR',
-    department: 'Human Resources',
-    pan: 'FKLPW3399R',
-    dateOfJoining: '10/05/2022',
-    bankAccName: '99221100342/Axis',
-    location: 'Mumbai',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 30,
-    effectiveWorkDays: 30,
-    lop: 0,
-    basicSalary: 40000,
-    hra: 16000,
-    allowances: 5000,
-    pf: 1800,
-    professionalTax: 200
-  },
-  {
-    employeeName: 'Shahid Himmat Shaikh',
-    employeeId: 'LT-EMP-042',
-    designation: 'Senior Web Developer',
-    department: 'Web Development',
-    pan: 'ACDPW1234F',
-    dateOfJoining: '15/06/2023',
-    bankAccName: '98765432101/HDFC',
-    location: 'Mumbai',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 30,
-    effectiveWorkDays: 30,
-    lop: 0,
-    basicSalary: 40000,
-    hra: 16000,
-    allowances: 4000,
-    pf: 1800,
-    professionalTax: 200
-  },
-  {
-    employeeName: 'Shravani Kulkarni',
-    employeeId: 'LT-EMP-021',
-    designation: 'QA Lead',
-    department: 'Engineering',
-    pan: 'BKLPW5678D',
-    dateOfJoining: '01/02/2023',
-    bankAccName: '12345678901/ICICI',
-    location: 'Pune',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 30,
-    effectiveWorkDays: 29,
-    lop: 1,
-    basicSalary: 45000,
-    hra: 18000,
-    allowances: 5000,
-    pf: 1800,
-    professionalTax: 200
-  },
-  {
-    employeeName: 'Shreya Deshmukh',
-    employeeId: 'LT-EMP-073',
-    designation: 'Product Designer',
-    department: 'Design',
-    pan: 'CPDPW9876E',
-    dateOfJoining: '10/10/2024',
-    bankAccName: '45678912304/Axis',
-    location: 'Bangalore',
-    pfAccountNumber: 'NA',
-    uan: 'NA',
-    daysInMonth: 31,
-    effectiveWorkDays: 31,
-    lop: 0,
-    basicSalary: 35000,
-    hra: 14000,
-    allowances: 4000,
-    pf: 1800,
-    professionalTax: 200
-  }
-];
 
 export default function PayslipBuilder({
   onBack,
   settings,
+  employees,
+  onSaveEmployees,
   onSavePayslip,
   editingPayslip = null,
   navigate
@@ -241,23 +63,10 @@ export default function PayslipBuilder({
   const [employeeSearch, setEmployeeSearch] = useState('');
 
   // Dynamic Employee Storage & Editing State
-  const [employees, setEmployees] = useState<SampleEmployee[]>(() => {
-    const saved = localStorage.getItem('lt_custom_employee_profiles');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // ignore
-      }
-    }
-    return SAMPLE_EMPLOYEES;
-  });
-  const [editingProfile, setEditingProfile] = useState<SampleEmployee | null>(null);
+  const [editingProfile, setEditingProfile] = useState<EmployeeProfile | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem('lt_custom_employee_profiles', JSON.stringify(employees));
-  }, [employees]);
+
 
   // Earnings Numbers
   const [basicSalary, setBasicSalary] = useState<number>(0);
@@ -289,13 +98,13 @@ export default function PayslipBuilder({
       setPf(Number(editingPayslip.pf || 0));
       setProfessionalTax(Number(editingPayslip.professionalTax || 0));
       setDeductions(Number(editingPayslip.deductions || 0));
-      setPan(editingPayslip.pan || '');
-      setDateOfJoining(editingPayslip.dateOfJoining || '');
-      setBankAccName(editingPayslip.bankAccName || '');
-      setLocation(editingPayslip.location || '');
-      setPfAccountNumber(editingPayslip.pfAccountNumber || '');
+      setPan(editingPayslip.pan);
+      setDateOfJoining(editingPayslip.dateOfJoining);
+      setBankAccName(editingPayslip.bankAccName);
+      setLocation(editingPayslip.location);
+      setPfAccountNumber(editingPayslip.pfAccountNumber);
       setDaysInMonth(Number(editingPayslip.daysInMonth ?? 30));
-      setUan(editingPayslip.uan || '');
+      setUan(editingPayslip.uan);
       setEffectiveWorkDays(Number(editingPayslip.effectiveWorkDays ?? 30));
       setLop(Number(editingPayslip.lop ?? 0));
     } else {
@@ -321,40 +130,46 @@ export default function PayslipBuilder({
       setProfessionalTax(0);
       setDeductions(0);
       
-      const date = new Date();
-      date.setMonth(date.getMonth() - 1);
-      const lastMonthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       setMonthAndYear('');
     }
   }, [editingPayslip]);
 
-  // Real-time calculations using Shahid Himmat Shaikh's details (25k salary) as the default fallback
-  const effectiveBasic = basicSalary || (!employeeName ? 25000 : 0);
+  const effectiveBasic = basicSalary;
   const grossSalary = effectiveBasic + hra + allowances + bonus;
   const totalDeductions = pf + professionalTax + deductions;
   const netSalary = grossSalary - totalDeductions;
 
-  const handleSave = () => {
-    const finalName = employeeName.trim() || 'Shahid Himmat Shaikh';
-    const finalId = employeeId.trim() || 'LT-EMP-042';
-    const finalDesignation = designation.trim() || 'Senior Web Developer';
-    const finalDepartment = department.trim() || 'Web Development';
-    const finalMonthAndYear = monthAndYear.trim() || 'June 2026';
-    const finalBasicSalary = basicSalary || 25000;
+  const handleSave = async () => {
+    if (!employeeName.trim() || !employeeId.trim() || !monthAndYear.trim()) {
+      alert('Employee name, employee ID, and salary month are required.'); return;
+    }
+    const amounts = [basicSalary, hra, allowances, bonus, pf, professionalTax, deductions];
+    if (amounts.some(value => !Number.isFinite(value) || value < 0) || totalDeductions > grossSalary) {
+      alert('Enter valid non-negative salary amounts; deductions cannot exceed gross salary.'); return;
+    }
+    if (daysInMonth < 1 || daysInMonth > 31 || effectiveWorkDays < 0 || effectiveWorkDays > daysInMonth || lop < 0 || lop > daysInMonth) {
+      alert('Check the days in month, effective work days, and loss of pay days.'); return;
+    }
+    const finalName = employeeName.trim();
+    const finalId = employeeId.trim();
+    const finalDesignation = designation.trim();
+    const finalDepartment = department.trim();
+    const finalMonthAndYear = monthAndYear.trim();
+    const finalBasicSalary = basicSalary;
     const finalHra = hra || 0;
     const finalAllowances = allowances || 0;
     const finalBonus = bonus || 0;
     const finalPf = pf || 0;
     const finalPT = professionalTax || 0;
     const finalDeductions = deductions || 0;
-    const finalPan = pan.trim() || 'ACDPW1234F';
-    const finalDoj = dateOfJoining.trim() || '15/06/2023';
-    const finalBankAccName = bankAccName.trim() || '98765432101/HDFC';
-    const finalLocation = location.trim() || 'Mumbai';
-    const finalPfAccountNumber = pfAccountNumber.trim() || 'NA';
-    const finalUan = uan.trim() || 'NA';
-    const finalDaysInMonth = daysInMonth || 30;
-    const finalEffectiveWorkDays = effectiveWorkDays || 30;
+    const finalPan = pan.trim();
+    const finalDoj = dateOfJoining.trim();
+    const finalBankAccName = bankAccName.trim();
+    const finalLocation = location.trim();
+    const finalPfAccountNumber = pfAccountNumber.trim();
+    const finalUan = uan.trim();
+    const finalDaysInMonth = daysInMonth;
+    const finalEffectiveWorkDays = effectiveWorkDays;
     const finalLop = lop || 0;
 
     const finalGrossSalary = finalBasicSalary + finalHra + finalAllowances + finalBonus;
@@ -362,7 +177,7 @@ export default function PayslipBuilder({
     const finalNetSalary = finalGrossSalary - finalTotalDeductions;
 
     const savedPayslip: Payslip = {
-      id: editingPayslip ? editingPayslip.id : 'payslip_' + Date.now(),
+      id: editingPayslip ? editingPayslip.id : crypto.randomUUID(),
       employeeName: finalName,
       employeeId: finalId,
       designation: finalDesignation,
@@ -391,78 +206,54 @@ export default function PayslipBuilder({
       lop: finalLop
     };
 
-    // Save employee details to localStorage to avoid entering them every time
-    const lastEmployeeDetails = {
-      employeeName: finalName,
-      employeeId: finalId,
-      designation: finalDesignation,
-      department: finalDepartment,
-      pan: finalPan,
-      dateOfJoining: finalDoj,
-      bankAccName: finalBankAccName,
-      location: finalLocation,
-      pfAccountNumber: finalPfAccountNumber,
-      daysInMonth: finalDaysInMonth,
-      uan: finalUan,
-      effectiveWorkDays: finalEffectiveWorkDays,
-      lop: finalLop
-    };
-    localStorage.setItem('lt_last_employee_details', JSON.stringify(lastEmployeeDetails));
-
-    onSavePayslip(savedPayslip);
+    if (!await onSavePayslip(savedPayslip)) return;
     navigate('/payslip/old');
   };
 
   // Temp object for real-time preview
   const currentPayslip: Payslip = {
     id: editingPayslip ? editingPayslip.id : 'temp_payslip_id',
-    employeeName: employeeName || 'Shahid Himmat Shaikh',
-    employeeId: employeeId || 'LT-EMP-042',
-    designation: designation || 'Senior Web Developer',
-    department: department || 'Web Development',
-    monthAndYear: monthAndYear || 'June 2026',
-    basicSalary: basicSalary || 25000,
+    employeeName: employeeName,
+    employeeId: employeeId,
+    designation: designation,
+    department: department,
+    monthAndYear: monthAndYear,
+    basicSalary: basicSalary,
     hra: hra || 0,
     allowances: allowances || 0,
     bonus: bonus || 0,
     deductions: deductions || 0,
     pf: pf || 0,
     professionalTax: professionalTax || 0,
-    grossSalary: (basicSalary || 25000) + (hra || 0) + (allowances || 0) + (bonus || 0),
+    grossSalary: (basicSalary) + (hra || 0) + (allowances || 0) + (bonus || 0),
     totalDeductions: (pf || 0) + (professionalTax || 0) + (deductions || 0),
-    netSalary: ((basicSalary || 25000) + (hra || 0) + (allowances || 0) + (bonus || 0)) - ((pf || 0) + (professionalTax || 0) + (deductions || 0)),
+    netSalary: ((basicSalary) + (hra || 0) + (allowances || 0) + (bonus || 0)) - ((pf || 0) + (professionalTax || 0) + (deductions || 0)),
     paymentDate,
     createdAt: new Date().toISOString(),
-    pan: pan || 'ACDPW1234F',
-    dateOfJoining: dateOfJoining || '15/06/2023',
-    bankAccName: bankAccName || '98765432101/HDFC',
-    location: location || 'Mumbai',
-    pfAccountNumber: pfAccountNumber || 'NA',
-    daysInMonth: daysInMonth || 30,
-    uan: uan || 'NA',
-    effectiveWorkDays: effectiveWorkDays || 30,
+    pan: pan,
+    dateOfJoining: dateOfJoining,
+    bankAccName: bankAccName,
+    location: location,
+    pfAccountNumber: pfAccountNumber,
+    daysInMonth: daysInMonth,
+    uan: uan,
+    effectiveWorkDays: effectiveWorkDays,
     lop: lop || 0
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-screen-2xl mx-auto py-6" id="payslip-builder-workspace">
+    <div className="space-y-6 animate-fade-in py-2" id="payslip-builder-workspace">
       
       {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={onBack}
-            className="p-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-755 rounded-xl cursor-pointer text-gray-600 dark:text-gray-300 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
               <Receipt className="h-6 w-6 text-teal-500" />
-              <span>{editingPayslip ? 'Edit Payroll Payslip' : 'Corporate Payslip Generator'}</span>
+              <span>{editingPayslip ? 'Edit payslip' : 'Create payslip'}</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Calculate, approve, and formulate official monthly employee payslips dynamically.
+              Enter employee details and salary amounts, then preview and save.
             </p>
           </div>
         </div>
@@ -486,7 +277,7 @@ export default function PayslipBuilder({
 
           <button
             onClick={handleSave}
-            className="px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors flex items-center space-x-2"
+            className="studio-button studio-button-primary text-sm"
           >
             <Save className="h-4 w-4" />
             <span>Save Payslip</span>
@@ -528,7 +319,7 @@ export default function PayslipBuilder({
                   required
                   value={employeeName}
                   onChange={(e) => setEmployeeName(e.target.value)}
-                  placeholder="Shahid Himmat Shaikh"
+                  placeholder="Employee name"
                   className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
@@ -900,7 +691,7 @@ export default function PayslipBuilder({
                       value={editingProfile.employeeName}
                       onChange={(e) => setEditingProfile({ ...editingProfile, employeeName: e.target.value })}
                       className="w-full px-3 py-2 text-xs rounded-lg border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white"
-                      placeholder="e.g. Shahid Shaikh"
+                      placeholder="e.g. Employee name"
                     />
                   </div>
 
@@ -1185,10 +976,10 @@ export default function PayslipBuilder({
                             <span className="text-[9px] font-black uppercase text-rose-700 dark:text-rose-400">Are you sure?</span>
                             <button
                               type="button"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
                                 const updated = employees.filter(item => item.employeeId !== emp.employeeId);
-                                setEmployees(updated);
+                                if (!await onSaveEmployees(updated)) return;
                                 setConfirmDeleteId(null);
                               }}
                               className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[9px] uppercase rounded-md cursor-pointer transition-colors"
@@ -1268,7 +1059,7 @@ export default function PayslipBuilder({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!editingProfile.employeeName) {
                         alert("Employee Name is required!");
                         return;
@@ -1281,7 +1072,7 @@ export default function PayslipBuilder({
                       // Check if we are updating an existing employee (by searching matching array ID or matching employeeId)
                       const exists = employees.some(emp => emp.employeeId.toLowerCase().trim() === editingProfile.employeeId.toLowerCase().trim());
                       
-                      let updatedList: SampleEmployee[];
+                      let updatedList: EmployeeProfile[];
                       if (exists) {
                         updatedList = employees.map(emp => 
                           emp.employeeId.toLowerCase().trim() === editingProfile.employeeId.toLowerCase().trim() ? editingProfile : emp
@@ -1290,7 +1081,7 @@ export default function PayslipBuilder({
                         updatedList = [editingProfile, ...employees];
                       }
 
-                      setEmployees(updatedList);
+                      if (!await onSaveEmployees(updatedList)) return;
                       setEditingProfile(null);
                     }}
                     className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"

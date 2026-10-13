@@ -14,7 +14,14 @@ globalThis.localStorage = {
   getItem: key => cache.get(key) ?? null,
   setItem: (key, value) => cache.set(key, value),
 };
-const initial = getStoredData().settings;
+const initialData = getStoredData();
+for (const collection of ['clients','courses','invoices','certificates','letters','payslips','employees','activities']) assert.deepEqual(initialData[collection], [], 'No seeded production records');
+for (const field of ['accountNumber','ifscCode','panNumber','gstNumber']) if (field in initialData.settings) assert.equal(initialData.settings[field], '', 'No fabricated financial defaults');
+const legacy = [{ id: 'old-invoice', clientName: 'Original Customer Name' }];
+cache.set('lihatech_invoices', JSON.stringify(legacy));
+assert.deepEqual(getStoredData().invoices, legacy, 'Legacy customer names and payloads remain intact');
+cache.delete('lihatech_invoices');
+const initial = initialData.settings;
 for (const image of ['data:image/png;base64,logo', 'data:image/svg+xml;utf8,<svg>logo</svg>', 'https://example.com/logo.png']) {
   const settings = { ...initial, logoUrl: image, signatureUrl: image, stampUrl: image };
   saveStoredData({ settings });
@@ -38,7 +45,14 @@ const shared = await build({
     build.onLoad({ filter: /src[\\/]lib[\\/]firebase\.ts$/ }, () => ({ contents: 'export const auth = null;' }));
     build.onResolve({ filter: /^@supabase\/supabase-js$/ }, () => ({ path: 'mock', namespace: 'branding' }));
     build.onLoad({ filter: /.*/, namespace: 'branding' }, () => ({ contents: `
-      export const createClient = () => ({ from(table) {
+      export const createClient = () => ({
+        async rpc(name, args) {
+          if (name !== 'save_studio_company_settings') throw new Error('Wrong settings endpoint');
+          if (globalThis.brandingTestDb.error) return { error: globalThis.brandingTestDb.error };
+          const row = { settings: args.p_settings, updated_at: '2026-10-13T00:00:00Z' };
+          globalThis.brandingTestDb.row = row;
+          return { data: row, error: null };
+        }, from(table) {
         if (table !== 'company_settings') throw new Error('Wrong table');
         return {
           select() { return this; },

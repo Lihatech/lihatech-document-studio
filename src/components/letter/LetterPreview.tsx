@@ -1,3 +1,4 @@
+import { parseAnnualCompensation } from '../../utils/compensation';
 import React, { useRef, useState, useEffect } from 'react';
 import { 
   Download, 
@@ -250,14 +251,14 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                     {letter.collegeName && (
                       <p className="font-bold text-slate-800">{letter.collegeName}</p>
                     )}
-                    <p className="font-bold text-slate-800">{letter.location || 'Kolhapur'}</p>
+                    <p className="font-bold text-slate-800">{letter.location || ''}</p>
                   </div>
                 ) : (
                   <div className="text-left text-[18px] text-black font-semibold space-y-0.5 mt-2 mb-4">
                     <p className="font-extrabold text-[#1e293b] uppercase text-[13.5px] tracking-wider mb-1">To,</p>
                     <p className="font-bold text-slate-800">The Director/Principal,</p>
-                    <p className="font-black text-black">{letter.collegeName || 'Bharati Vidyapeeth’s College of Engineering, Kolhapur'}</p>
-                    <p className="font-bold text-slate-800">{letter.location || 'Kolhapur'}</p>
+                    <p className="font-black text-black">{letter.collegeName || ''}</p>
+                    <p className="font-bold text-slate-800">{letter.location || ''}</p>
                   </div>
                 )}
 
@@ -280,11 +281,11 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                   <div className="leading-relaxed text-black font-semibold space-y-3.5 text-justify text-[16px]">
                     {letter.addressTo === 'candidate' ? (
                       <p>
-                        We are pleased to extend an offer for position <strong className="text-black font-black">{letter.designation || 'Software Engineering, Intern'}</strong> to you{letter.collegeName ? ` from ${letter.collegeName}` : ''}. This internship is an excellent opportunity for you to gain hands-on experience in these rapidly growing fields, enhancing your academic learning with practical industry exposure.
+                        We are pleased to extend an offer for position <strong className="text-black font-black">{letter.designation || ''}</strong> to you{letter.collegeName ? ` from ${letter.collegeName}` : ''}. This internship is an excellent opportunity for you to gain hands-on experience in these rapidly growing fields, enhancing your academic learning with practical industry exposure.
                       </p>
                     ) : (
                       <p>
-                        We are pleased to extend an offer for position <strong className="text-black font-black">{letter.designation || 'Software Engineering, Intern'}</strong> to <strong className="text-black font-black">{letter.candidateName}</strong> from your esteemed institution. This internship is an excellent opportunity for him/her to gain hands-on experience in these rapidly growing fields, enhancing their academic learning with practical industry exposure.
+                        We are pleased to extend an offer for position <strong className="text-black font-black">{letter.designation || ''}</strong> to <strong className="text-black font-black">{letter.candidateName}</strong> from your esteemed institution. This internship is an excellent opportunity for him/her to gain hands-on experience in these rapidly growing fields, enhancing their academic learning with practical industry exposure.
                       </p>
                     )}
 
@@ -294,7 +295,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                       <ul className="pl-6 space-y-1 font-semibold text-black text-[16px] list-none">
                         <li className="flex items-center gap-2">
                           <span className="text-lg leading-none">•</span>
-                          <span>Position: <strong className="font-black text-black">{letter.designation || 'Software Engineering, Intern'}</strong></span>
+                          <span>Position: <strong className="font-black text-black">{letter.designation || ''}</strong></span>
                         </li>
                         <li className="flex items-center gap-2">
                           <span className="text-lg leading-none">•</span>
@@ -302,11 +303,11 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                         </li>
                         <li className="flex items-center gap-2">
                           <span className="text-lg leading-none">•</span>
-                          <span>Duration: <strong className="font-black text-black">{letter.duration || '6 months'}</strong></span>
+                          <span>Duration: <strong className="font-black text-black">{letter.duration || ''}</strong></span>
                         </li>
                         <li className="flex items-center gap-2">
                           <span className="text-lg leading-none">•</span>
-                          <span>Location: <strong className="font-black text-black">{letter.location || 'Kolhapur'}</strong></span>
+                          <span>Location: <strong className="font-black text-black">{letter.location || ''}</strong></span>
                         </li>
                       </ul>
                     </div>
@@ -349,7 +350,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                   </div>
                   
                   <div className="text-[11px] text-slate-800 font-extrabold leading-tight" style={{ color: '#1E293B' }}>
-                    <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>Director LihaTech</p>
+                    <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>{settings.directorDesignation}</p>
                     <p className="text-slate-500 font-medium italic mt-0.5" style={{ color: '#64748B' }}>Business Development | Client Relations</p>
                   </div>
                 </div>
@@ -390,7 +391,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                     {letter.noStipend ? (
                       <>
                         <p>
-                          <strong className="text-black font-extrabold">Probation Period:</strong> The initial probation period will be <strong className="text-black font-black">{letter.probation || '90 days'}</strong>.
+                          <strong className="text-black font-extrabold">Probation Period:</strong> The initial probation period will be <strong className="text-black font-black">{letter.probation || ''}</strong>.
                         </p>
                         <p>
                           This internship is with <strong className="text-black font-black">No-Stipend</strong>.
@@ -405,13 +406,13 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                           <strong className="text-black font-extrabold">Leave Policy:</strong> The candidate shall <strong className="text-black font-black">not take leave without prior written approval</strong> from the company.
                         </p>
                         <p>
-                          <strong className="text-black font-extrabold">Notice Period:</strong> In case the candidate wishes to <strong className="text-black font-black">discontinue, switch jobs, or leave the internship</strong>, they must serve a <strong className="text-black font-black">Notice Period (NP) of {letter.noticePeriod || '30 days'}</strong> as per company policy.
+                          <strong className="text-black font-extrabold">Notice Period:</strong> In case the candidate wishes to <strong className="text-black font-black">discontinue, switch jobs, or leave the internship</strong>, they must serve a <strong className="text-black font-black">Notice Period (NP) of {letter.noticePeriod || ''}</strong> as per company policy.
                         </p>
                       </>
                     ) : (
                       <>
                         <p>
-                          <strong className="text-black font-extrabold">1. Probation Period:</strong> The initial probation period will be <strong className="text-black font-black">{letter.probation || '90 days'}</strong>.
+                          <strong className="text-black font-extrabold">1. Probation Period:</strong> The initial probation period will be <strong className="text-black font-black">{letter.probation || ''}</strong>.
                         </p>
                         <p>
                           <strong className="text-black font-extrabold">2. Confirmation:</strong> Based on a performance assessment, you will be moved to an <strong className="text-black font-black">on-roll position</strong> upon successful completion of the probation period. [Provided that you must complete your degree].
@@ -429,7 +430,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                           <strong className="text-black font-extrabold">6. Leave Policy:</strong> The candidate shall <strong className="text-black font-black">not take leave without prior written approval</strong> from the company.
                         </p>
                         <p>
-                          <strong className="text-black font-extrabold">7. Notice Period:</strong> In case the candidate wishes to discontinue, switch jobs, or leave the internship, they must serve a <strong className="text-black font-black">Notice Period (NP) of {letter.noticePeriod || '30 days'}</strong> as per company policy.
+                          <strong className="text-black font-extrabold">7. Notice Period:</strong> In case the candidate wishes to discontinue, switch jobs, or leave the internship, they must serve a <strong className="text-black font-black">Notice Period (NP) of {letter.noticePeriod || ''}</strong> as per company policy.
                         </p>
                       </>
                     )}
@@ -463,7 +464,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[#64748b] min-w-[50px]">Place:</span>
-                      <span className="border-b border-dashed border-slate-400 flex-1 h-5 block text-black font-extrabold text-[15px]">{letter.location || 'Kolhapur'}</span>
+                      <span className="border-b border-dashed border-slate-400 flex-1 h-5 block text-black font-extrabold text-[15px]">{letter.location || ''}</span>
                     </div>
                   </div>
                 </div>
@@ -481,18 +482,13 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
     }
 
     if (letter.letterType === 'Job Offer') {
-      const parseCTC = (ctcStr: string): number => {
-        if (!ctcStr) return 450000;
-        const cleaned = ctcStr.replace(/[^0-9]/g, '');
-        const val = Number(cleaned);
-        return val > 0 ? val : 450000;
-      };
+
 
       const formatRupees = (val: number) => {
         return '₹' + Math.round(val).toLocaleString('en-IN');
       };
 
-      const annualCTC = parseCTC(letter.stipend || '₹4,50,000 / annum');
+      const annualCTC = parseAnnualCompensation(letter.stipend || '');
       const monthlyCTC = Math.round(annualCTC / 12);
       
       let employerPF = annualCTC >= 250000 ? 1800 : 0;
@@ -631,7 +627,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                   </p>
                   
                   <p>
-                    You will be based at our <strong className="text-black font-black">{letter.location || 'Kolhapur Office'}</strong>.
+                    You will be based at our <strong className="text-black font-black">{letter.location || ''}</strong>.
                   </p>
 
                   <p>
@@ -690,10 +686,10 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
 
                 <div className="space-y-1.5 text-black">
                   <p>
-                    <strong className="text-black font-extrabold">1. Working Hours:</strong> Your normal working hours will be from <strong className="text-black font-black">{letter.workingHours || '9:00 AM to 6:00 PM'}</strong>, from <strong className="text-black font-black">{letter.workingDays || 'Monday to Saturday'}</strong>. Depending on project, training or client requirements, you may occasionally be required to work beyond normal working hours.
+                    <strong className="text-black font-extrabold">1. Working Hours:</strong> Your normal working hours will be from <strong className="text-black font-black">{letter.workingHours || ''}</strong>, from <strong className="text-black font-black">{letter.workingDays || ''}</strong>. Depending on project, training or client requirements, you may occasionally be required to work beyond normal working hours.
                   </p>
                   <p>
-                    <strong className="text-black font-extrabold">2. Probation Period:</strong> You will be on probation for a period of <strong className="text-black font-black">{letter.probation || 'six months'}</strong> from your date of joining. Your confirmation will be based on satisfactory performance, conduct and attendance and will be communicated to you in writing. The probation period may be extended if additional performance evaluation is required.
+                    <strong className="text-black font-extrabold">2. Probation Period:</strong> You will be on probation for a period of <strong className="text-black font-black">{letter.probation || ''}</strong> from your date of joining. Your confirmation will be based on satisfactory performance, conduct and attendance and will be communicated to you in writing. The probation period may be extended if additional performance evaluation is required.
                   </p>
                   <p>
                     <strong className="text-black font-extrabold">3. Salary and Benefits:</strong> Your annual Cost to Company will be <strong className="text-black font-black">{formatRupees(annualCTC)}</strong>. The detailed salary structure is provided in Annexure I. Your salary will be subject to statutory deductions, including Professional Tax, Provident Fund, ESIC and Income Tax, wherever applicable.
@@ -705,7 +701,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                     <strong className="text-black font-extrabold">5. Duties and Responsibilities:</strong> You will perform the duties related to your position and any other reasonable responsibilities assigned by the Company. You are expected to perform your duties honestly, professionally and in the best interests of LihaTech and its clients.
                   </p>
                   <p>
-                    <strong className="text-black font-extrabold">6. Place of Work:</strong> Your initial place of work will be <strong className="text-black font-black">{letter.location || 'Kolhapur Office'}</strong>. Depending on business or project requirements, you may be assigned to another project, department, client location, remote working arrangement or office location.
+                    <strong className="text-black font-extrabold">6. Place of Work:</strong> Your initial place of work will be <strong className="text-black font-black">{letter.location || ''}</strong>. Depending on business or project requirements, you may be assigned to another project, department, client location, remote working arrangement or office location.
                   </p>
                   <p>
                     <strong className="text-black font-extrabold">7. Confidentiality:</strong> You must maintain confidentiality regarding all non-public information relating to LihaTech, its clients, students, employees and business partners. This includes source code, project documents, AI workflows, datasets, course material, client information, passwords, API keys, pricing and business plans. Confidential information must not be copied, shared, published or used for any unauthorised purpose during or after your employment.
@@ -764,7 +760,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
 
                 <div className="space-y-1.5 text-black text-[13px] leading-relaxed">
                   <p>
-                    <strong className="text-black font-extrabold">13. Notice Period:</strong> During probation, either party may terminate the employment by giving <strong className="text-black font-black">15 days’ written notice</strong> or salary in lieu of notice. After confirmation, either party may terminate the employment by giving <strong className="text-black font-black">{letter.noticePeriod || '30 days'}’ written notice</strong> or salary in lieu of notice, subject to Company approval and applicable law. The Company may terminate employment in cases of serious misconduct, fraud, data theft, breach of confidentiality, harassment, document falsification or wilful damage to Company or client property.
+                    <strong className="text-black font-extrabold">13. Notice Period:</strong> During probation, either party may terminate the employment by giving <strong className="text-black font-black">15 days’ written notice</strong> or salary in lieu of notice. After confirmation, either party may terminate the employment by giving <strong className="text-black font-black">{letter.noticePeriod || ''}’ written notice</strong> or salary in lieu of notice, subject to Company approval and applicable law. The Company may terminate employment in cases of serious misconduct, fraud, data theft, breach of confidentiality, harassment, document falsification or wilful damage to Company or client property.
                   </p>
                   <p>
                     <strong className="text-black font-extrabold">14. Resignation and Handover:</strong> At the time of resignation or termination, you must complete the required notice period, project handover, knowledge transfer, return of assets and clearance formalities. Final settlement and employment documents will be processed after completion of the exit formalities.
@@ -863,7 +859,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 <div className="text-left space-y-1 text-[13px] text-black font-normal" style={{ minWidth: '220px' }}>
                   <p className="font-extrabold">Employee Signature: <span className="font-normal">__________________</span></p>
                   <p className="font-extrabold">Employee Name: <span className="font-normal">{letter.candidateName}</span></p>
-                  <p className="font-extrabold">Place: <span className="font-normal">{getCandidateLocation() || letter.location || '______________________________'}</span></p>
+                  <p className="font-extrabold">Place: <span className="font-normal">{getCandidateLocation() || letter.location || ''}</span></p>
                 </div>
 
                 {/* Authentic overlapping signature & stamp block */}
@@ -890,7 +886,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                   </div>
                   
                   <div className="text-[11px] text-slate-800 font-extrabold leading-tight" style={{ color: '#1E293B' }}>
-                    <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>Director LihaTech</p>
+                    <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>{settings.directorDesignation}</p>
                     <p className="text-slate-500 font-medium italic mt-0.5" style={{ color: '#64748B' }}>Business Operations</p>
                   </div>
                 </div>
@@ -1025,7 +1021,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 <div className="text-left space-y-1 text-[13px] text-black font-normal" style={{ minWidth: '220px' }}>
                   <p className="font-extrabold">Candidate Signature: <span className="font-normal">__________________</span></p>
                   <p className="font-extrabold">Candidate Name: <span className="font-normal">{letter.candidateName}</span></p>
-                  <p className="font-extrabold">Place: <span className="font-normal">{getCandidateLocation() || letter.location || '______________________________'}</span></p>
+                  <p className="font-extrabold">Place: <span className="font-normal">{getCandidateLocation() || letter.location || ''}</span></p>
                 </div>
 
                 {/* Authentic overlapping signature & stamp block */}
@@ -1052,7 +1048,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                   </div>
                   
                   <div className="text-[11px] text-slate-800 font-extrabold leading-tight" style={{ color: '#1E293B' }}>
-                    <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>Director LihaTech</p>
+                    <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>{settings.directorDesignation}</p>
                     <p className="text-slate-500 font-medium italic mt-0.5" style={{ color: '#64748B' }}>Business Operations</p>
                   </div>
                 </div>
@@ -1260,7 +1256,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
               {/* Dynamic Narrative Letter Body matching the image */}
               <div className="leading-relaxed text-black font-medium space-y-6 text-justify text-[16px]">
                 <p>
-                  This has reference to your resignation letter. This is to inform you that your resignation has been accepted and you are relieved from the services of <strong className="text-black font-black">{settings.name || 'Lance Soft Engineering Private Limited'}</strong> on the close of working hours on <strong className="text-black font-black">{letter.endDate ? formatDate(letter.endDate) : formatDate(letter.issueDate)}</strong>.
+                  This has reference to your resignation letter. This is to inform you that your resignation has been accepted and you are relieved from the services of <strong className="text-black font-black">{settings.name}</strong> on the close of working hours on <strong className="text-black font-black">{letter.endDate ? formatDate(letter.endDate) : formatDate(letter.issueDate)}</strong>.
                 </p>
                 <p>
                   You are requested to deposit the company Id and any other company property entrusted to you during your employment with us.
@@ -1421,7 +1417,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
               </div>
               
               <div className="text-[11px] text-slate-800 font-extrabold leading-tight" style={{ color: '#1E293B' }}>
-                <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>Director LihaTech</p>
+                <p className="text-slate-950 font-black text-xs" style={{ color: '#0F172A' }}>{settings.directorDesignation}</p>
                 <p className="text-slate-500 font-medium italic mt-0.5" style={{ color: '#64748B' }}>Business Development | Client Relations</p>
               </div>
             </div>

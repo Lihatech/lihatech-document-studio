@@ -1,6 +1,6 @@
+import { parseAnnualCompensation } from '../utils/compensation';
 import React, { useState, useEffect } from 'react';
 import { 
-  ArrowLeft, 
   Save, 
   Mail, 
   Sparkles, 
@@ -17,7 +17,7 @@ import LetterPreview from '../components/letter/LetterPreview';
 interface LetterBuilderProps {
   onBack: () => void;
   settings: CompanySettings;
-  onSaveLetter: (letter: Letter) => void;
+  onSaveLetter: (letter: Letter) => Promise<boolean>;
   editingLetter?: Letter | null;
   navigate: (path: string) => void;
 }
@@ -44,7 +44,7 @@ export default function LetterBuilder({
   const [endDate, setEndDate] = useState('');
   const [companyName, setCompanyName] = useState(settings.name || 'LihaTech Solutions Private Limited');
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [authorizedSignatory, setAuthorizedSignatory] = useState('Director|Business Operations');
+  const [authorizedSignatory, setAuthorizedSignatory] = useState(settings.directorName);
   
   // Custom conditional fields
   const [stipend, setStipend] = useState(''); // Stipend or Salary
@@ -52,23 +52,23 @@ export default function LetterBuilder({
   const [mode, setMode] = useState('Hybrid'); // Internship mode
   const [reportingInstructions, setReportingInstructions] = useState(''); // Internship reporting info
   const [employmentType, setEmploymentType] = useState('Full-time'); // Job employment type
-  const [location, setLocation] = useState('Kolhapur Office'); // Job office location
+  const [location, setLocation] = useState(''); // Job office location
   const [conductStatement, setConductStatement] = useState(''); // Experience certificate review statement
   const [collegeName, setCollegeName] = useState(''); // College name for interns
   const [duration, setDuration] = useState(''); // Duration for interns (e.g. "6 months")
   const [addressTo, setAddressTo] = useState<'college' | 'candidate'>('college'); // Add addressTo state
 
   // Job Offer Candidate Particulars fields
-  const [dob, setDob] = useState('15/08/1998');
-  const [parentName, setParentName] = useState('Himmat Shaikh');
-  const [aadhaar, setAadhaar] = useState('xxxx-xxxx-xxxx');
-  const [uanEsic, setUanEsic] = useState('NA');
-  const [skillCategory, setSkillCategory] = useState('Highly Skilled');
-  const [reportingTo, setReportingTo] = useState('Yameen Hakim');
-  const [probation, setProbation] = useState('6 months');
-  const [workingDays, setWorkingDays] = useState('6 days');
-  const [workingHours, setWorkingHours] = useState('9:00 AM - 6:00 PM');
-  const [noticePeriod, setNoticePeriod] = useState('45 days');
+  const [dob, setDob] = useState('');
+  const [parentName, setParentName] = useState('');
+  const [aadhaar, setAadhaar] = useState('');
+  const [uanEsic, setUanEsic] = useState('');
+  const [skillCategory, setSkillCategory] = useState('');
+  const [reportingTo, setReportingTo] = useState('');
+  const [probation, setProbation] = useState('');
+  const [workingDays, setWorkingDays] = useState('');
+  const [workingHours, setWorkingHours] = useState('');
+  const [noticePeriod, setNoticePeriod] = useState('');
 
   // Custom Salary Breakdown fields
   const [customSalaryEnabled, setCustomSalaryEnabled] = useState(true);
@@ -80,14 +80,7 @@ export default function LetterBuilder({
   const [customEmployerESICMonthly, setCustomEmployerESICMonthly] = useState('0');
   const [customOtherBenefitsMonthly, setCustomOtherBenefitsMonthly] = useState('0');
 
-  const parseCTC = (str: string): number => {
-    if (!str) return 450000;
-    const cleaned = str.replace(/[^0-9]/g, '');
-    const val = Number(cleaned);
-    return val > 0 ? val : 450000;
-  };
-
-  const annualCTC = parseCTC(stipend || '₹4,50,000 / annum');
+  const annualCTC = parseAnnualCompensation(stipend);
   const monthlyCTC = Math.round(annualCTC / 12);
   const calculatedBasicMonthly = Math.max(0, 
     monthlyCTC - (
@@ -107,67 +100,23 @@ export default function LetterBuilder({
   const initializeDefaults = (type: 'Internship Offer' | 'Job Offer' | 'Experience Certificate' | 'Relieving Letter') => {
     setLetterType(type);
     
-    // Sensible industry defaults
-    if (type === 'Internship Offer') {
-      setDesignation('Software Engineering, Intern');
-      setDepartment('Software Engineering');
-      setStipend('₹12,500 / month');
-      setNoStipend(false);
-      setLocation('Kolhapur');
-      setMode('Hybrid');
-      setReportingInstructions('Please report to the assigned mentor on your start date. You will be briefed on project goals, key responsibilities, and guidelines.');
-      setCollegeName('Bharati Vidyapeeth’s College of Engineering, Kolhapur');
-      setDuration('6 months');
-      setProbation('90 days');
-      setNoticePeriod('30 days');
-    } else if (type === 'Job Offer') {
-      setDesignation('Associate Software Engineer');
-      setDepartment('Engineering');
-      setStipend('₹4,50,000 / annum');
-      setEmploymentType('Full-time');
-      setLocation('Kolhapur Office');
-      setCollegeName('');
-      setDuration('');
-      setDob('15/08/1998');
-      setParentName('Himmat Shaikh');
-      setAadhaar('xxxx-xxxx-xxxx');
-      setUanEsic('NA');
-      setSkillCategory('Highly Skilled');
-      setReportingTo('Director|Business Operations');
-      setProbation('6 months');
-      setWorkingDays('6 days');
-      setWorkingHours('9:00 AM - 6:00 PM');
-      setNoticePeriod('45 days');
-      setCustomSalaryEnabled(true);
-      setCustomBasicMonthly('');
-      setCustomHraMonthly('0');
-      setCustomSpecialMonthly('0');
-      setCustomOtherMonthly('0');
-      setCustomEmployerPFMonthly('0');
-      setCustomEmployerESICMonthly('0');
-      setCustomOtherBenefitsMonthly('0');
-    } else if (type === 'Experience Certificate') {
-      setDesignation('Full Stack Engineer');
-      setDepartment('Web Development');
-      const today = new Date();
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(today.getMonth() - 6);
-      setStartDate(sixMonthsAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-      setConductStatement('During their tenure with us, we found them to be highly skilled, self-motivated, and exceptionally committed to excellence. Their problem-solving abilities and positive teamwork attitude made them an invaluable asset. Their conduct was exemplary.');
-      setCollegeName('');
-      setDuration('');
-    } else if (type === 'Relieving Letter') {
-      setDesignation('Software Engineer');
-      setDepartment('Engineering');
-      const today = new Date();
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(today.getMonth() - 6);
-      setStartDate(sixMonthsAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-      setCollegeName('');
-      setDuration('');
-    }
+    const defaults = settings.letterDefaults?.[type] || {};
+    setDesignation(defaults.designation || ''); setDepartment(defaults.department || '');
+    setStipend(defaults.stipend || ''); setLocation(defaults.location || '');
+    setCollegeName(''); setDuration(defaults.duration || '');
+    setDob(''); setParentName(''); setAadhaar(''); setUanEsic('');
+    setSkillCategory(defaults.skillCategory || '');
+    setReportingTo(defaults.reportingTo || ''); setProbation(defaults.probation || '');
+    setWorkingDays(defaults.workingDays || ''); setWorkingHours(defaults.workingHours || '');
+    setNoticePeriod(defaults.noticePeriod || '');
+    setEmploymentType(defaults.employmentType || 'Full-time'); setMode(defaults.mode || 'Hybrid');
+    setAuthorizedSignatory(defaults.authorizedSignatory || settings.directorName);
+    setReportingInstructions(defaults.reportingInstructions || ''); setConductStatement(defaults.conductStatement || '');
+    setStartDate(''); setEndDate(''); setNoStipend(Boolean(defaults.noStipend));
+    setCustomSalaryEnabled(true); setCustomBasicMonthly('');
+    setCustomHraMonthly('0'); setCustomSpecialMonthly('0'); setCustomOtherMonthly('0');
+    setCustomEmployerPFMonthly('0'); setCustomEmployerESICMonthly('0'); setCustomOtherBenefitsMonthly('0');
+
   };
 
   // Load editing letter
@@ -182,27 +131,27 @@ export default function LetterBuilder({
       setEndDate(editingLetter.endDate || '');
       setCompanyName(editingLetter.companyName || settings.name);
       setIssueDate(editingLetter.issueDate || '');
-      setAuthorizedSignatory(editingLetter.authorizedSignatory || 'Director|Business Operations');
+      setAuthorizedSignatory(editingLetter.authorizedSignatory || settings.directorName);
       setStipend(editingLetter.stipend || '');
       setNoStipend(editingLetter.noStipend || false);
       setMode(editingLetter.mode || 'Hybrid');
       setReportingInstructions(editingLetter.reportingInstructions || '');
       setEmploymentType(editingLetter.employmentType || 'Full-time');
-      setLocation(editingLetter.location || (editingLetter.letterType === 'Internship Offer' ? 'Kolhapur' : 'Kolhapur Office'));
+      setLocation(editingLetter.location || '');
       setConductStatement(editingLetter.conductStatement || '');
       setCollegeName(editingLetter.collegeName || '');
       setDuration(editingLetter.duration || '');
       setAddressTo(editingLetter.addressTo || 'college');
-      setDob(editingLetter.dob || '15/08/1998');
-      setParentName(editingLetter.parentName || 'Himmat Shaikh');
-      setAadhaar(editingLetter.aadhaar || 'xxxx-xxxx-xxxx');
-      setUanEsic(editingLetter.uanEsic || 'NA');
-      setSkillCategory(editingLetter.skillCategory || 'Highly Skilled');
-      setReportingTo(editingLetter.reportingTo || 'Director|Business Operations');
-      setProbation(editingLetter.probation || (editingLetter.letterType === 'Internship Offer' ? '90 days' : '6 months'));
-      setWorkingDays(editingLetter.workingDays || '6 days');
-      setWorkingHours(editingLetter.workingHours || '9:00 AM - 6:00 PM');
-      setNoticePeriod(editingLetter.noticePeriod || (editingLetter.letterType === 'Internship Offer' ? '30 days' : '45 days'));
+      setDob(editingLetter.dob || '');
+      setParentName(editingLetter.parentName || '');
+      setAadhaar(editingLetter.aadhaar || '');
+      setUanEsic(editingLetter.uanEsic || '');
+      setSkillCategory(editingLetter.skillCategory || '');
+      setReportingTo(editingLetter.reportingTo || '');
+      setProbation(editingLetter.probation || '');
+      setWorkingDays(editingLetter.workingDays || '');
+      setWorkingHours(editingLetter.workingHours || '');
+      setNoticePeriod(editingLetter.noticePeriod || '');
       setCustomSalaryEnabled(editingLetter.customSalaryEnabled !== undefined ? editingLetter.customSalaryEnabled : true);
       setCustomBasicMonthly(editingLetter.customBasicMonthly !== undefined ? String(editingLetter.customBasicMonthly) : '');
       setCustomHraMonthly(editingLetter.customHraMonthly !== undefined ? String(editingLetter.customHraMonthly) : '0');
@@ -214,7 +163,7 @@ export default function LetterBuilder({
     }
   }, [editingLetter, settings]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!candidateName.trim()) {
       alert('Candidate/Employee Name is required!');
       return;
@@ -228,9 +177,13 @@ export default function LetterBuilder({
       return;
     }
     if (!letterType) return;
+    if (!startDate || !issueDate) { alert('Start date and issue date are required.'); return; }
+    if ((letterType === 'Job Offer' || (letterType === 'Internship Offer' && !noStipend)) && !stipend.trim()) {
+      alert('Enter the agreed compensation, or select no stipend for an unpaid internship.'); return;
+    }
 
     const savedLetter: Letter = {
-      id: editingLetter ? editingLetter.id : 'letter_' + Date.now(),
+      id: editingLetter ? editingLetter.id : crypto.randomUUID(),
       referenceNo: referenceNo.trim() || undefined,
       letterType,
       candidateName,
@@ -272,7 +225,7 @@ export default function LetterBuilder({
       createdAt: editingLetter ? editingLetter.createdAt : new Date().toISOString()
     };
 
-    onSaveLetter(savedLetter);
+    if (!await onSaveLetter(savedLetter)) return;
     navigate('/letter/old');
   };
 
@@ -321,21 +274,15 @@ export default function LetterBuilder({
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto py-6" id="letter-builder-workspace">
+    <div className="space-y-6 animate-fade-in py-2" id="letter-builder-workspace">
       
       {/* Top Title Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={onBack}
-            className="p-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-755 rounded-xl cursor-pointer text-gray-600 dark:text-gray-300 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
               <Mail className="h-6 w-6 text-indigo-500" />
-              <span>{editingLetter ? 'Edit Corporate Letter' : 'Corporate Letter Generator'}</span>
+              <span>{editingLetter ? 'Edit letter' : 'Create letter'}</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {editingLetter ? 'Modify details and regenerate corporate legal letters.' : 'Select a document layout to draft official HR communication.'}
@@ -363,10 +310,10 @@ export default function LetterBuilder({
 
             <button
               onClick={handleSave}
-              className="px-5 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors flex items-center space-x-2"
+              className="studio-button studio-button-primary text-sm"
             >
               <Save className="h-4 w-4" />
-              <span>Save Document</span>
+              <span>Save letter</span>
             </button>
           </div>
         )}
@@ -376,8 +323,8 @@ export default function LetterBuilder({
       {!letterType && (
         <div className="space-y-6">
           <div className="text-center py-6">
-            <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Draft a New Communication Layout</h2>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">Please select one of the authorized company letter structures below to start inputting employee details.</p>
+            <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Choose a letter type</h2>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">Select the document you need, then enter the recipient's details.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

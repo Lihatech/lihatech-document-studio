@@ -1,3 +1,4 @@
+import { getReservedInvoiceNumbers } from '../../lib/documentStudio';
 import React, { useState } from 'react';
 import { 
   X, 
@@ -22,7 +23,7 @@ interface BulkInvoiceModalProps {
   onClose: () => void;
   existingInvoices: Invoice[];
   clients: Client[];
-  onBulkAddInvoices: (invoices: Invoice[]) => void;
+  onBulkAddInvoices: (invoices: Invoice[]) => Promise<boolean>;
 }
 
 interface QuickRow {
@@ -59,7 +60,7 @@ export default function BulkInvoiceModal({
       clientCompanyName: '',
       clientEmail: '',
       projectName: 'Professional Software & Tech Services',
-      amount: 25000,
+      amount: 0,
       currency: 'INR',
       invoiceDate: todayStr,
       dueDate: dueStr,
@@ -71,7 +72,7 @@ export default function BulkInvoiceModal({
       clientCompanyName: '',
       clientEmail: '',
       projectName: 'Consulting & Implementation Services',
-      amount: 45000,
+      amount: 0,
       currency: 'INR',
       invoiceDate: todayStr,
       dueDate: dueStr,
@@ -162,7 +163,7 @@ export default function BulkInvoiceModal({
     const amountPaid = row.status === 'Paid' ? finalAmount : 0;
 
     return {
-      id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      id: crypto.randomUUID(),
       invoiceNumber: invNumber,
       clientName: row.clientName || 'Valued Client',
       clientCompanyName: row.clientCompanyName || row.clientName || 'Valued Client Ltd.',
@@ -194,7 +195,7 @@ export default function BulkInvoiceModal({
   };
 
   // Submit Form Quick Rows
-  const handleSubmitRows = () => {
+  const handleSubmitRows = async () => {
     const validRows = rows.filter(r => r.clientName.trim() !== '');
     if (validRows.length === 0) {
       alert('Please enter a Client Name for at least one invoice.');
@@ -202,7 +203,7 @@ export default function BulkInvoiceModal({
     }
 
     const bulkGroupId = `inv_bulk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    let existingNumbers = existingInvoices.map(i => i.invoiceNumber);
+    let existingNumbers = [...existingInvoices.map(i => i.invoiceNumber), ...getReservedInvoiceNumbers()];
     const newInvoices: Invoice[] = [];
 
     for (const r of validRows) {
@@ -212,7 +213,7 @@ export default function BulkInvoiceModal({
       newInvoices.push(inv);
     }
 
-    onBulkAddInvoices(newInvoices);
+    if (!await onBulkAddInvoices(newInvoices)) return;
     onClose();
   };
 
@@ -272,7 +273,7 @@ export default function BulkInvoiceModal({
       const dueDateIdx = headers.findIndex(h => h.includes('due date') || h.includes('due'));
       const statusIdx = headers.findIndex(h => h.includes('status'));
 
-      let currentNumbers = [...existingInvoices.map(i => i.invoiceNumber)];
+      let currentNumbers = [...[...existingInvoices.map(i => i.invoiceNumber), ...getReservedInvoiceNumbers()]];
       const result: Invoice[] = [];
       const csvBulkGroupId = `inv_bulk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -282,12 +283,16 @@ export default function BulkInvoiceModal({
         const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(',');
         const cleanCols = cols.map(c => c.replace(/^["']|["']$/g, '').trim());
 
-        const clientName = (clientIdx >= 0 && cleanCols[clientIdx]) ? cleanCols[clientIdx] : `Client ${i}`;
+        const clientName = (clientIdx >= 0 && cleanCols[clientIdx]) ? cleanCols[clientIdx] : '';
         const companyName = (companyIdx >= 0 && cleanCols[companyIdx]) ? cleanCols[companyIdx] : clientName;
         const email = (emailIdx >= 0 && cleanCols[emailIdx]) ? cleanCols[emailIdx] : '';
         const project = (projectIdx >= 0 && cleanCols[projectIdx]) ? cleanCols[projectIdx] : 'Professional Services';
-        const amountVal = (amountIdx >= 0 && cleanCols[amountIdx]) ? parseFloat(cleanCols[amountIdx].replace(/[^0-9.]/g, '')) : 10000;
-        const amount = isNaN(amountVal) ? 10000 : amountVal;
+        const amountText = amountIdx >= 0 ? cleanCols[amountIdx] : '';
+        const amount = amountText ? Number(amountText.replace(/[₹$€,\s]/g, '')) : NaN;
+        if (!clientName.trim() || !Number.isFinite(amount) || amount < 0) {
+          alert(`CSV row ${i + 1} needs a client name and a valid non-negative amount.`);
+          return;
+        }
 
         let currency: 'INR' | 'USD' | 'EUR' = 'INR';
         if (currencyIdx >= 0 && cleanCols[currencyIdx]) {
@@ -333,9 +338,9 @@ export default function BulkInvoiceModal({
   };
 
   // Submit CSV Parsed Invoices
-  const handleSubmitCSV = () => {
+  const handleSubmitCSV = async () => {
     if (!parsedPreview || parsedPreview.length === 0) return;
-    onBulkAddInvoices(parsedPreview);
+    if (!await onBulkAddInvoices(parsedPreview)) return;
     onClose();
   };
 
@@ -549,7 +554,7 @@ export default function BulkInvoiceModal({
                 </button>
                 
                 <span className="text-xs text-slate-400 font-medium">
-                  Sequential IDs will be assigned automatically (e.g. {generateInvoiceNumber(existingInvoices.map(i => i.invoiceNumber))})
+                  Sequential IDs will be assigned automatically (e.g. {generateInvoiceNumber([...existingInvoices.map(i => i.invoiceNumber), ...getReservedInvoiceNumbers()])})
                 </span>
               </div>
             </div>

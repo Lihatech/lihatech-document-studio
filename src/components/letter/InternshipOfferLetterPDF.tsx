@@ -431,7 +431,7 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
                     <Text key={idx} style={[styles.candidateAddressLine, idx === 0 && { fontWeight: 'bold' }]}>{line}</Text>
                   ))
                 ) : (
-                  <Text style={[styles.candidateAddressLine, { fontWeight: 'bold' }]}>{letter.collegeName || 'Bharati Vidyapeeth’s College of Engineering, Kolhapur'}</Text>
+                  <Text style={[styles.candidateAddressLine, { fontWeight: 'bold' }]}>{letter.collegeName || ''}</Text>
                 )}
                 {letter.location?.trim() ? (
                   <Text style={styles.candidateAddressLine}>{letter.location}</Text>
@@ -453,11 +453,11 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
 
             {letter.addressTo === 'candidate' ? (
               <Text style={styles.paragraph}>
-                We are pleased to extend an offer for position <Text style={{ fontWeight: 'bold' }}>{letter.designation || 'Software Engineering, Intern'}</Text> to you{letter.collegeName ? ` from ${letter.collegeName}` : ''}. This internship is an excellent opportunity for you to gain hands-on experience in these rapidly growing fields, enhancing your academic learning with practical industry exposure.
+                We are pleased to extend an offer for position <Text style={{ fontWeight: 'bold' }}>{letter.designation || ''}</Text> to you{letter.collegeName ? ` from ${letter.collegeName}` : ''}. This internship is an excellent opportunity for you to gain hands-on experience in these rapidly growing fields, enhancing your academic learning with practical industry exposure.
               </Text>
             ) : (
               <Text style={styles.paragraph}>
-                We are pleased to extend an offer for position <Text style={{ fontWeight: 'bold' }}>{letter.designation || 'Software Engineering, Intern'}</Text> to <Text style={{ fontWeight: 'bold' }}>{letter.candidateName}</Text> from your esteemed institution. This internship is an excellent opportunity for him/her to gain hands-on experience in these rapidly growing fields, enhancing their academic learning with practical industry exposure.
+                We are pleased to extend an offer for position <Text style={{ fontWeight: 'bold' }}>{letter.designation || ''}</Text> to <Text style={{ fontWeight: 'bold' }}>{letter.candidateName}</Text> from your esteemed institution. This internship is an excellent opportunity for him/her to gain hands-on experience in these rapidly growing fields, enhancing their academic learning with practical industry exposure.
               </Text>
             )}
 
@@ -466,7 +466,7 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
               <Text style={styles.internshipBulletTitle}>Internship Details:</Text>
               <View style={styles.internshipBulletRow}>
                 <Text style={styles.internshipBulletSign}>• </Text>
-                <Text style={styles.internshipBulletText}>Position: <Text style={{ fontWeight: 'bold' }}>{letter.designation || 'Software Engineering, Intern'}</Text></Text>
+                <Text style={styles.internshipBulletText}>Position: <Text style={{ fontWeight: 'bold' }}>{letter.designation || ''}</Text></Text>
               </View>
               <View style={styles.internshipBulletRow}>
                 <Text style={styles.internshipBulletSign}>• </Text>
@@ -474,7 +474,7 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
               </View>
               <View style={styles.internshipBulletRow}>
                 <Text style={styles.internshipBulletSign}>• </Text>
-                <Text style={styles.internshipBulletText}>Duration: <Text style={{ fontWeight: 'bold' }}>{letter.duration || '6 months'}</Text></Text>
+                <Text style={styles.internshipBulletText}>Duration: <Text style={{ fontWeight: 'bold' }}>{letter.duration || ''}</Text></Text>
               </View>
               <View style={styles.internshipBulletRow}>
                 <Text style={styles.internshipBulletSign}>• </Text>
@@ -531,7 +531,7 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
               <>
                 <Text style={styles.termItem}>
                   <Text style={styles.termTitle}>Probation Period: </Text>
-                  The initial probation period will be <Text style={{fontWeight: 'bold'}}>{letter.probation || '90 days'}</Text>.
+                  The initial probation period will be <Text style={{fontWeight: 'bold'}}>{letter.probation || ''}</Text>.
                 </Text>
                 <Text style={styles.termItem}>
                   This internship is with <Text style={{fontWeight: 'bold'}}>No-Stipend</Text>.
@@ -549,14 +549,14 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
                 </Text>
                 <Text style={styles.termItem}>
                   <Text style={styles.termTitle}>Notice Period: </Text>
-                  In case the candidate wishes to <Text style={{fontWeight: 'bold'}}>discontinue, switch jobs, or leave the internship</Text>, they must serve a <Text style={{fontWeight: 'bold'}}>Notice Period (NP) of {letter.noticePeriod || '30 days'}</Text> as per company policy.
+                  In case the candidate wishes to <Text style={{fontWeight: 'bold'}}>discontinue, switch jobs, or leave the internship</Text>, they must serve a <Text style={{fontWeight: 'bold'}}>Notice Period (NP) of {letter.noticePeriod || ''}</Text> as per company policy.
                 </Text>
               </>
             ) : (
               <>
                 <Text style={styles.termItem}>
                   <Text style={styles.termTitle}>1. Probation Period: </Text>
-                  The initial probation period will be <Text style={{fontWeight: 'bold'}}>{letter.probation || '90 days'}</Text>.
+                  The initial probation period will be <Text style={{fontWeight: 'bold'}}>{letter.probation || ''}</Text>.
                 </Text>
                 <Text style={styles.termItem}>
                   <Text style={styles.termTitle}>2. Confirmation: </Text>
@@ -580,7 +580,7 @@ export default function InternshipOfferLetterPDF({ letter, settings }: Internshi
                 </Text>
                 <Text style={styles.termItem}>
                   <Text style={styles.termTitle}>7. Notice Period: </Text>
-                  In case the candidate wishes to discontinue, switch jobs, or leave the internship, they must serve a <Text style={{fontWeight: 'bold'}}>Notice Period (NP) of {letter.noticePeriod || '30 days'}</Text> as per company policy.
+                  In case the candidate wishes to discontinue, switch jobs, or leave the internship, they must serve a <Text style={{fontWeight: 'bold'}}>Notice Period (NP) of {letter.noticePeriod || ''}</Text> as per company policy.
                 </Text>
               </>
             )}

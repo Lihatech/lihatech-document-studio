@@ -1,6 +1,7 @@
+import SavedOptionSelect from '../components/SavedOptionSelect';
+import { getCertificateCategoryOptions } from '../utils/certificateUtils';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ArrowLeft, 
   Save, 
   Award, 
   Sparkles
@@ -24,10 +25,10 @@ interface CertificateBuilderProps {
   courses: Course[];
   existingCertificates: Certificate[];
   settings: CompanySettings;
-  onSaveCertificate: (cert: Certificate) => void;
+  onAddCertificateOption: (kind: 'category' | 'partner', name: string) => Promise<string>;
+  onSaveCertificate: (cert: Certificate) => Promise<boolean>;
   editingCertificate?: Certificate | null;
-  onSaveCourse?: (course: Course) => void;
-  onDeleteCourse?: (id: string) => void;
+  onSaveCourse: (course: Course) => Promise<boolean>;
   navigate: (path: string) => void;
 }
 
@@ -36,6 +37,8 @@ export default function CertificateBuilder({
   courses,
   existingCertificates,
   settings,
+  onSaveCourse,
+  onAddCertificateOption,
   onSaveCertificate,
   editingCertificate = null,
   navigate
@@ -138,15 +141,15 @@ export default function CertificateBuilder({
         setCertificateType(firstCourse.type);
         setCompletionText(getDefaultCompletionText(firstCourse.type));
       } else {
-        setProgramName('Masterclass on Machine Learning');
+        setProgramName('');
         setCompletionText(getDefaultCompletionText('Course Completion'));
       }
     }
-  }, [editingCertificate, existingCertificates, courses, settings.certificatePartners]);
+  }, [editingCertificate]);
 
   const selectedPartner = settings.certificatePartners?.find((partner) => partner.id === partnerProfileId);
 
-  const handleSaveCertificate = () => {
+  const handleSaveCertificate = async () => {
     if (!candidateName.trim()) {
       alert('Candidate Name is required!');
       return;
@@ -157,7 +160,7 @@ export default function CertificateBuilder({
     }
 
     const savedCert: Certificate = {
-      id: editingCertificate ? editingCertificate.id : 'cert_' + Date.now(),
+      id: editingCertificate ? editingCertificate.id : crypto.randomUUID(),
       certificateId,
       candidateName,
       candidateEmail: '',
@@ -188,36 +191,30 @@ export default function CertificateBuilder({
       createdAt: editingCertificate ? editingCertificate.createdAt : new Date().toISOString()
     };
 
-    onSaveCertificate(savedCert);
+    if (!await onSaveCertificate(savedCert)) return;
   };
 
   return (
     <div className="space-y-8 pb-12 animate-fade-in">
       
       {/* Header controls bar */}
-      <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-850">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={onBack}
-            className="p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl cursor-pointer transition-all"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
           <div>
-            <span className="text-xxs font-bold text-[#B8894D] uppercase tracking-widest block">LihaTech Certify</span>
-            <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">
-              {editingCertificate ? 'Edit Student Certificate' : 'Issue Professional Certificate'}
-            </h2>
+            <span className="text-xxs font-bold text-[#B8894D] uppercase tracking-widest block">Certificates</span>
+            <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">
+              {editingCertificate ? 'Edit certificate' : 'Create certificate'}
+            </h1>
           </div>
         </div>
         
         <button
           type="button"
           onClick={handleSaveCertificate}
-          className="flex items-center space-x-1.5 px-6 py-2.5 bg-[#6D1F2A] hover:bg-[#5A1922] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transition-all"
+          className="studio-button studio-button-primary text-sm"
         >
           <Save className="h-4 w-4" />
-          <span>Save & Exit</span>
+          <span>Save certificate</span>
         </button>
       </div>
 
@@ -276,37 +273,26 @@ export default function CertificateBuilder({
           {/* Certification Category */}
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certification Category</label>
-            <select
-              value={certificateType}
-              onChange={(e) => {
-                const newType = e.target.value;
+            <SavedOptionSelect label="Certification category" value={certificateType}
+              options={getCertificateCategoryOptions(settings.certificateCategories, certificateType)}
+              onChange={(newType) => {
                 const oldDef = getDefaultCompletionText(certificateType);
                 setCertificateType(newType);
                 if (!completionText || completionText === oldDef) {
                   setCompletionText(getDefaultCompletionText(newType));
                 }
               }}
-              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium"
-            >
-              {CERTIFICATE_TYPE_PRESETS.map((preset) => (
-                <option key={preset.value} value={preset.value}>{preset.label}</option>
-              ))}
-            </select>
+              onAdd={(name) => onAddCertificateOption('category', name)}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium" />
           </div>
 
           {/* Partner institute */}
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Partner Institute (optional)</label>
-            <select
-              value={partnerProfileId}
-              onChange={(e) => setPartnerProfileId(e.target.value)}
-              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium"
-            >
-              <option value="">LihaTech only</option>
-              {(settings.certificatePartners || []).map((partner) => (
-                <option key={partner.id} value={partner.id}>{partner.name}</option>
-              ))}
-            </select>
+            <SavedOptionSelect label="Partner institute" value={partnerProfileId}
+              options={[{ value: '', label: `${settings.name} only` }, ...(settings.certificatePartners || []).map(partner => ({ value: partner.id, label: partner.name }))]}
+              onChange={setPartnerProfileId} onAdd={(name) => onAddCertificateOption('partner', name)}
+              className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none text-gray-900 dark:text-white font-medium" />
             <p className="mt-1.5 text-[10px] text-gray-400">Add reusable institute logos from Settings → Certificate Settings.</p>
           </div>
           </div>
@@ -424,6 +410,23 @@ export default function CertificateBuilder({
             />
           </div>
 
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Saved programme</label>
+            <SavedOptionSelect label="Programme" value={courses.some(course => course.name === programName) ? programName : ''}
+              options={[{ value: '', label: 'Choose a saved programme' }, ...courses.map(course => ({ value: course.name, label: course.name }))]}
+              onChange={(name) => {
+                const course = courses.find(course => course.name === name);
+                if (course) { setProgramName(course.name); setCertificateType(course.type); setCompletionText(course.defaultText || getDefaultCompletionText(course.type)); }
+              }}
+              onAdd={async (name) => {
+                const existing = courses.find(course => course.name.toLowerCase() === name.toLowerCase());
+                if (existing) return existing.name;
+                if (!await onSaveCourse({ id: crypto.randomUUID(), name, type: certificateType, duration: '', mode: 'Online', description: '', defaultText: completionText })) throw new Error('Programme could not be saved. Please try again.');
+                setProgramName(name); return name;
+              }}
+              className="block min-h-11 w-full rounded-xl border border-slate-300 bg-transparent px-3 text-xs" />
+          </div>
+
           {/* Design Template Selection */}
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Design Template</label>
@@ -530,10 +533,10 @@ export default function CertificateBuilder({
             <button
               type="button"
               onClick={handleSaveCertificate}
-              className="flex items-center space-x-1.5 px-6 py-2.5 bg-[#6D1F2A] hover:bg-[#5A1922] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transition-all"
+              className="studio-button studio-button-primary text-sm"
             >
               <Save className="h-4 w-4" />
-              <span>Save & Exit</span>
+              <span>Save certificate</span>
             </button>
           </div>
         </div>

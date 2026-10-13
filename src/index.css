@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Alex+Brush&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -230,4 +231,57 @@ body {
   .no-print {
     display: none !important;
   }
+}
+
+/* Module controls use the same brand palette as the LMS admin shell. */
+@layer components {
+  .studio-button {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 150ms, border-color 150ms, color 150ms;
+  }
+  .studio-button-primary {
+    background: var(--liha-blue-dark);
+    color: white;
+  }
+  .studio-button-primary:hover { background: var(--liha-navy); }
+  .studio-button-secondary {
+    background: var(--liha-surface);
+    border-color: var(--liha-border);
+    color: var(--liha-navy);
+  }
+  .studio-button-secondary:hover { background: var(--liha-surface-soft); }
+  .studio-button:focus-visible,
+  .studio-link:focus-visible {
+    outline: 2px solid var(--liha-blue);
+    outline-offset: 3px;
+  }
+  .studio-button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .studio-link {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    border-radius: 4px;
+  }
+  .studio-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .dark .studio-button-secondary {
+    background: #0a3553;
+    border-color: #1a5573;
+    color: #eafcff;
+  }
+  .dark .studio-button-secondary:hover { background: #174966; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .document-workspace .animate-fade-in,
+  .document-workspace .animate-zoom-in { animation: none; }
+  .document-workspace .studio-button { transition: none; }
 }

@@ -41,18 +41,25 @@ export async function ensureSupabaseAdmin(firebaseUid: string) {
   return profile;
 }
 
+let companySettingsUpdatedAt: string | null = null;
 export async function loadCompanySettings(): Promise<Partial<CompanySettings> | null> {
   if (!supabase) throw new Error('Supabase is not configured.');
   const { data, error } = await supabase.from('company_settings')
-    .select('settings').eq('id', true).maybeSingle();
+    .select('settings,updated_at').eq('id', true).maybeSingle();
   if (error) throw error;
+  companySettingsUpdatedAt = data?.updated_at ?? null;
   return data?.settings ?? null;
 }
 
 export async function saveCompanySettings(settings: CompanySettings): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured. Shared settings could not be saved.');
   // Keep compressed image data with the settings so PDFs need no expiring asset URLs.
-  const { error } = await supabase.from('company_settings')
-    .upsert({ id: true, settings }, { onConflict: 'id' });
-  if (error) throw error;
+  const { data, error } = await supabase.rpc('save_studio_company_settings', {
+    p_settings: settings, p_expected_updated_at: companySettingsUpdatedAt,
+  });
+  if (error) {
+    if (error.code === '40001') throw new Error('Settings changed on another device. Reload Settings before saving again.');
+    throw error;
+  }
+  companySettingsUpdatedAt = data.updated_at;
 }

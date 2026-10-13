@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  getStoredData, 
-  saveStoredData, 
-  addRecentActivity 
+import {
+  getStoredData,
+  getDefaultStudioData,
+  normalizeSettings,
+  saveStoredData,
+  createActivity
 } from './utils/storage';
-import { 
-  Invoice, 
-  Certificate, 
+import {
+  Invoice,
+  Certificate,
   CompanySettings,
   Course,
   Letter,
@@ -27,6 +29,7 @@ import {
   loadCompanySettings,
   saveCompanySettings,
 } from './lib/supabase';
+import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, recordKinds, isSharedRecord, type StudioData } from './lib/documentStudio';
 import { LMS_API_BASE_URL, lmsRequest } from './lib/lmsApi';
 
 // Pages
@@ -58,6 +61,7 @@ const adminModuleByPath: Record<string, AdminModuleKey> = {
 
 // Layout & Previews
 import Navbar from './components/layout/Navbar';
+import DocumentNavigation, { getDocumentSection } from './components/layout/DocumentNavigation';
 import InvoicePreview from './components/invoice/InvoicePreview';
 import CertificatePreview from './components/certificate/CertificatePreview';
 
@@ -80,6 +84,10 @@ export default function App() {
   });
 
   const navigate = (toPath: string) => {
+    if (path === '/invoice/new' && toPath !== path) setEditingInvoice(null);
+    if (path === '/certificate/new' && toPath !== path) setEditingCertificate(null);
+    if (path === '/letter/new' && toPath !== path) setEditingLetter(null);
+    if (path === '/payslip/new' && toPath !== path) setEditingPayslip(null);
     window.history.pushState(null, '', toPath);
     setPath(toPath);
   };
@@ -92,8 +100,19 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    window.scrollTo(0, 0);
+    document.getElementById('route-panel-container')?.focus({ preventScroll: true });
+  }, [path, isLoggedIn]);
+
   // Unified Database State
-  const [db, setDb] = useState(() => getStoredData());
+  const [db, setDb] = useState<StudioData>(() => getDefaultStudioData());
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const busyRef = React.useRef(false);
+  const [legacy] = useState(() => getStoredData());
+  const [importDismissed, setImportDismissed] = useState(false);
 
   // Firebase handles sign-in; its ID token authenticates Supabase requests.
   useEffect(() => {
@@ -118,9 +137,9 @@ export default function App() {
           await ensureSupabaseAdmin(user.uid);
         }
         const sharedSettings = await loadCompanySettings();
-        if (sharedSettings) {
-          setDb(current => ({ ...current, settings: { ...current.settings, ...sharedSettings } }));
-        }
+        const sharedData = await loadStudioData(getDefaultStudioData());
+        sharedData.settings = normalizeSettings(sharedSettings || {});
+        setDb(sharedData);
         setAuthEmail(user.email ?? null);
         setAuthError('');
         localStorage.setItem('lt_is_logged_in', 'true');
@@ -173,15 +192,23 @@ export default function App() {
     localStorage.setItem('lt_theme', theme);
   }, [theme]);
 
-  // Synchronize memory changes with storage.ts
-  const updateDbState = (updates: Partial<typeof db>) => {
-    const nextDb = { ...db, ...updates };
-    setDb(nextDb);
-    saveStoredData(updates);
+  const updateDbState = async (updates: Partial<StudioData>, activity?: ReturnType<typeof createActivity>): Promise<boolean> => {
+    if (busyRef.current) return false;
+    busyRef.current = true; setSaving(true); setSaveError('');
+    const changes = activity ? { ...updates, activities: [activity, ...db.activities] } : updates;
+    try {
+      await saveStudioChanges(db, changes);
+      setDb(current => ({ ...current, ...changes }));
+      return true;
+    } catch (error) {
+      setSaveError(errorMessage(error));
+      return false;
+    } finally { busyRef.current = false; setSaving(false); }
   };
 
   // Logout handler
   const handleLogout = () => {
+    if (busyRef.current) return;
     localStorage.removeItem('lt_is_logged_in');
     setIsLoggedIn(false);
     setAuthEmail(null);
@@ -190,197 +217,53 @@ export default function App() {
     navigate('/');
   };
 
-  // INVOICE HANDLERS
-  const handleSaveInvoice = (invoice: Invoice) => {
-    const isEdit = db.invoices.some(inv => inv.id === invoice.id);
-    let updatedInvoices: Invoice[];
-
-    if (isEdit) {
-      updatedInvoices = db.invoices.map(inv => inv.id === invoice.id ? invoice : inv);
-      addRecentActivity('invoice_updated', `Invoice ${invoice.invoiceNumber} updated for ${invoice.clientName}`);
-    } else {
-      updatedInvoices = [invoice, ...db.invoices];
-      addRecentActivity('invoice_created', `Invoice ${invoice.invoiceNumber} drafted for ${invoice.clientName}`);
-    }
-
-    updateDbState({ invoices: updatedInvoices });
-    setEditingInvoice(null);
-    navigate('/invoice/old');
+  // Every document type uses the same durable save/archive path.
+  type DocumentCollection = 'invoices' | 'certificates' | 'letters' | 'payslips';
+  const saveDocument = async (collection: DocumentCollection, document: Invoice | Certificate | Letter | Payslip,
+    route: string, type: Parameters<typeof createActivity>[0], description: string) => {
+    const rows = db[collection] as (Invoice | Certificate | Letter | Payslip)[];
+    const updated = rows.some(row => row.id === document.id)
+      ? rows.map(row => row.id === document.id ? document : row) : [document, ...rows];
+    if (!await updateDbState({ [collection]: updated }, createActivity(type, description))) return false;
+    setEditingInvoice(null); setEditingCertificate(null); setEditingLetter(null); setEditingPayslip(null);
+    navigate(route); return true;
   };
-
-  const handleDeleteInvoice = (id: string) => {
-    const target = db.invoices.find(inv => inv.id === id);
-    const updated = db.invoices.filter(inv => inv.id !== id);
-    updateDbState({ invoices: updated });
-    
-    if (target) {
-      addRecentActivity('invoice_updated', `Invoice ${target.invoiceNumber} permanently deleted`);
-    }
+  const archiveDocuments = (collection: DocumentCollection, ids: string | string[], type: Parameters<typeof createActivity>[0]) => {
+    const selected = Array.isArray(ids) ? ids : [ids];
+    return updateDbState({ [collection]: db[collection].filter(row => !selected.includes(row.id)) },
+      createActivity(type, `Removed ${selected.length} ${collection} from registry`));
   };
-
-  const handleEditInvoiceTrigger = (invoice: Invoice) => {
-    setEditingInvoice(invoice);
-    navigate('/invoice/new');
-  };
-
-  const handleBulkDeleteInvoices = (ids: string[]) => {
-    const count = ids.length;
-    const updated = db.invoices.filter(inv => !ids.includes(inv.id));
-    updateDbState({ invoices: updated });
-    addRecentActivity('invoice_updated', `Bulk deleted ${count} invoice(s)`);
-  };
-
-  const handleBulkUpdateInvoiceStatus = (ids: string[], newStatus: 'Paid' | 'Unpaid' | 'Partially Paid') => {
-    const updated = db.invoices.map(inv => {
-      if (ids.includes(inv.id)) {
-        const amountPaid = newStatus === 'Paid' ? inv.totalAmount : newStatus === 'Unpaid' ? 0 : inv.amountPaid;
-        const balanceAmount = inv.totalAmount - amountPaid;
-        return {
-          ...inv,
-          status: newStatus,
-          amountPaid,
-          balanceAmount
-        };
-      }
-      return inv;
-    });
-    updateDbState({ invoices: updated });
-    addRecentActivity('invoice_updated', `Bulk updated status of ${ids.length} invoice(s) to ${newStatus}`);
-  };
-
-  const handleBulkAddInvoices = (newInvoices: Invoice[]) => {
-    const updated = [...newInvoices, ...db.invoices];
-    updateDbState({ invoices: updated });
-    addRecentActivity('invoice_created', `Batch created ${newInvoices.length} new invoice(s)`);
-  };
-
-  // CERTIFICATE HANDLERS
-  const handleSaveCertificate = (certificate: Certificate) => {
-    const isEdit = db.certificates.some(c => c.id === certificate.id);
-    let updatedCertificates: Certificate[];
-
-    if (isEdit) {
-      updatedCertificates = db.certificates.map(c => c.id === certificate.id ? certificate : c);
-      addRecentActivity('certificate_updated', `Certificate ${certificate.certificateId} updated for ${certificate.candidateName}`);
-    } else {
-      updatedCertificates = [certificate, ...db.certificates];
-      addRecentActivity('certificate_created', `Certificate ${certificate.certificateId} issued to ${certificate.candidateName}`);
-    }
-
-    updateDbState({ certificates: updatedCertificates });
-    setEditingCertificate(null);
-    navigate('/certificate/old');
-  };
-
-  const handleDeleteCertificate = (idOrIds: string | string[]) => {
-    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
-    const updated = db.certificates.filter(c => !ids.includes(c.id));
-    updateDbState({ certificates: updated });
-    
-    if (ids.length === 1) {
-      const target = db.certificates.find(c => c.id === ids[0]);
-      if (target) {
-        addRecentActivity('certificate_updated', `Certificate ${target.certificateId} removed from registry`);
-      }
-    } else {
-      addRecentActivity('certificate_updated', `Removed ${ids.length} certificates from registry`);
-    }
-  };
-
-  const handleEditCertificateTrigger = (cert: Certificate) => {
-    setEditingCertificate(cert);
-    navigate('/certificate/new');
-  };
-
-  // LETTER HANDLERS
-  const handleSaveLetter = (letter: Letter) => {
-    const isEdit = db.letters.some(l => l.id === letter.id);
-    let updatedLetters: Letter[];
-
-    if (isEdit) {
-      updatedLetters = db.letters.map(l => l.id === letter.id ? letter : l);
-      addRecentActivity('letter_updated', `HR Letter of type ${letter.letterType} updated for ${letter.candidateName}`);
-    } else {
-      updatedLetters = [letter, ...db.letters];
-      addRecentActivity('letter_created', `HR Letter of type ${letter.letterType} drafted for ${letter.candidateName}`);
-    }
-
-    updateDbState({ letters: updatedLetters });
-    setEditingLetter(null);
-    navigate('/letter/old');
-  };
-
-  const handleDeleteLetter = (id: string) => {
-    const target = db.letters.find(l => l.id === id);
-    const updated = db.letters.filter(l => l.id !== id);
-    updateDbState({ letters: updated });
-    
-    if (target) {
-      addRecentActivity('letter_updated', `${target.letterType} for ${target.candidateName} permanently deleted`);
-    }
-  };
-
-  const handleEditLetterTrigger = (letter: Letter) => {
-    setEditingLetter(letter);
-    navigate('/letter/new');
-  };
-
-  // PAYSLIP HANDLERS
-  const handleSavePayslip = (payslip: Payslip) => {
-    const isEdit = db.payslips.some(p => p.id === payslip.id);
-    let updatedPayslips: Payslip[];
-
-    if (isEdit) {
-      updatedPayslips = db.payslips.map(p => p.id === payslip.id ? payslip : p);
-      addRecentActivity('payslip_updated', `Payslip for ${payslip.employeeName} (${payslip.monthAndYear}) updated`);
-    } else {
-      updatedPayslips = [payslip, ...db.payslips];
-      addRecentActivity('payslip_created', `Payslip formulated for ${payslip.employeeName} for ${payslip.monthAndYear}`);
-    }
-
-    updateDbState({ payslips: updatedPayslips });
-    setEditingPayslip(null);
-    navigate('/payslip/old');
-  };
-
-  const handleDeletePayslip = (id: string) => {
-    const target = db.payslips.find(p => p.id === id);
-    const updated = db.payslips.filter(p => p.id !== id);
-    updateDbState({ payslips: updated });
-    
-    if (target) {
-      addRecentActivity('payslip_updated', `Payslip for ${target.employeeName} (${target.monthAndYear}) deleted`);
-    }
-  };
-
-  const handleEditPayslipTrigger = (payslip: Payslip) => {
-    setEditingPayslip(payslip);
-    navigate('/payslip/new');
-  };
-
-  // COURSE HANDLERS (PROGRAM PRESETS)
-  const handleSaveCourse = (course: Course) => {
-    const isEdit = db.courses.some(c => c.id === course.id);
-    let updatedCourses: Course[];
-    if (isEdit) {
-      updatedCourses = db.courses.map(c => c.id === course.id ? course : c);
-    } else {
-      updatedCourses = [...db.courses, course];
-    }
-    updateDbState({ courses: updatedCourses });
-  };
-
-  const handleDeleteCourse = (id: string) => {
-    const updated = db.courses.filter(c => c.id !== id);
-    updateDbState({ courses: updated });
-  };
-
-  // CLIENT HANDLERS
-  const handleAddClient = (client: Client) => {
-    const updatedClients = [client, ...db.clients];
-    updateDbState({ clients: updatedClients });
-    addRecentActivity('client_added', `Added new client: ${client.name} (${client.companyName || 'Individual'})`);
-  };
+  const handleSaveInvoice = (row: Invoice) => saveDocument('invoices', row, '/invoice/old',
+    db.invoices.some(item => item.id === row.id) ? 'invoice_updated' : 'invoice_created', `Invoice ${row.invoiceNumber} saved for ${row.clientName}`);
+  const handleSaveCertificate = (row: Certificate) => saveDocument('certificates', row, '/certificate/old',
+    db.certificates.some(item => item.id === row.id) ? 'certificate_updated' : 'certificate_created', `Certificate ${row.certificateId} saved for ${row.candidateName}`);
+  const handleSaveLetter = (row: Letter) => saveDocument('letters', row, '/letter/old',
+    db.letters.some(item => item.id === row.id) ? 'letter_updated' : 'letter_created', `${row.letterType} saved for ${row.candidateName}`);
+  const handleSavePayslip = (row: Payslip) => saveDocument('payslips', row, '/payslip/old',
+    db.payslips.some(item => item.id === row.id) ? 'payslip_updated' : 'payslip_created', `Payslip saved for ${row.employeeName} (${row.monthAndYear})`);
+  const handleDeleteInvoice = (ids: string | string[]) => archiveDocuments('invoices', ids, 'invoice_updated');
+  const handleBulkDeleteInvoices = handleDeleteInvoice;
+  const handleDeleteCertificate = (ids: string | string[]) => archiveDocuments('certificates', ids, 'certificate_updated');
+  const handleDeleteLetter = (id: string) => archiveDocuments('letters', id, 'letter_updated');
+  const handleDeletePayslip = (id: string) => archiveDocuments('payslips', id, 'payslip_updated');
+  const handleEditInvoiceTrigger = (row: Invoice) => { setEditingInvoice(row); navigate('/invoice/new'); };
+  const handleEditCertificateTrigger = (row: Certificate) => { setEditingCertificate(row); navigate('/certificate/new'); };
+  const handleEditLetterTrigger = (row: Letter) => { setEditingLetter(row); navigate('/letter/new'); };
+  const handleEditPayslipTrigger = (row: Payslip) => { setEditingPayslip(row); navigate('/payslip/new'); };
+  const handleBulkUpdateInvoiceStatus = (ids: string[], status: Invoice['status']) => updateDbState({
+    invoices: db.invoices.map(row => {
+      if (!ids.includes(row.id)) return row;
+      const amountPaid = status === 'Paid' ? row.totalAmount : status === 'Unpaid' ? 0 : row.amountPaid;
+      return { ...row, status, amountPaid, balanceAmount: row.totalAmount - amountPaid };
+    }),
+  }, createActivity('invoice_updated', `Updated payment status of ${ids.length} invoices`));
+  const handleBulkAddInvoices = (rows: Invoice[]) => updateDbState({ invoices: [...rows, ...db.invoices] },
+    createActivity('bulk_generated', `Saved ${rows.length} invoices`));
+  const handleAddClient = (client: Client) => updateDbState({ clients: [client, ...db.clients] },
+    createActivity('client_added', `Added client ${client.name}`));
+  const handleSaveCourse = (course: Course) => updateDbState({
+    courses: db.courses.some(row => row.id === course.id) ? db.courses.map(row => row.id === course.id ? course : row) : [...db.courses, course],
+  }, createActivity('course_added', `Saved programme ${course.name}`));
 
   // CORPORATE PREFERENCES HANDLER
   const handleSaveSettings = async (nextSettings: CompanySettings) => {
@@ -389,6 +272,29 @@ export default function App() {
     // Shared storage is authoritative; a full browser cache must not undo a successful save.
     try { saveStoredData({ settings: nextSettings }); }
     catch (error) { console.warn('Could not cache shared company settings locally.', error); }
+  };
+
+  const handleAddCertificateOption = async (kind: 'category' | 'partner', name: string) => {
+    const settings = normalizeSettings(await addCertificateOption(kind, name));
+    setDb(current => ({ ...current, settings }));
+    if (kind === 'category') return settings.certificateCategories!.find(value => value.toLowerCase() === name.trim().toLowerCase())!;
+    return settings.certificatePartners!.find(value => value.name.toLowerCase() === name.trim().toLowerCase())!.id;
+  };
+
+  const legacyUpdates: Partial<StudioData> = {};
+  for (const collection of Object.keys(recordKinds) as (keyof typeof recordKinds)[]) {
+    const existing = new Set(db[collection].map(row => 'id' in row ? row.id : row.employeeId));
+    const missing = legacy[collection].filter(row => !existing.has('id' in row ? row.id : row.employeeId) && !isSharedRecord(collection, 'id' in row ? row.id : row.employeeId));
+    if (missing.length) (legacyUpdates[collection] as unknown[]) = [...db[collection], ...missing];
+  }
+  const legacyCount = Object.keys(legacyUpdates).reduce((total, collection) => total + legacyUpdates[collection as keyof typeof recordKinds]!.length - db[collection as keyof typeof recordKinds].length, 0);
+  const importLegacy = async () => {
+    if (!window.confirm('Import the browser records into the shared registry? Review the backup first; older versions may contain sample records.')) return;
+    if (await updateDbState(legacyUpdates, createActivity('bulk_generated', 'Imported legacy browser records'))) setImportDismissed(true);
+  };
+  const downloadLegacy = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(legacy, null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'document-studio-browser-backup.json'; anchor.click(); URL.revokeObjectURL(url);
   };
 
   // Auth check guard
@@ -402,8 +308,10 @@ export default function App() {
 
   return (
     <div id="app-shell" className="min-h-screen bg-[#FAFAFA] font-sans transition-colors duration-250 dark:bg-slate-950">
-      
-      <Navbar 
+
+      <a href="#route-panel-container" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10001] focus:rounded-xl focus:bg-white focus:p-4 focus:text-slate-900">Skip to page content</a>
+      {saving && <div role="status" aria-live="polite" className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/30"><div className="rounded-xl bg-white p-5 text-slate-900 shadow-lg">Saving to the shared registry…</div></div>}
+      <Navbar
         path={path}
         navigate={navigate}
         settings={db.settings}
@@ -415,10 +323,17 @@ export default function App() {
 
       {/* Main Container Stage */}
       <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 lg:ml-64 lg:px-8 lg:py-8">
-        
+
+        {saveError && <div role="alert" className="fixed right-4 top-4 z-[10000] max-w-lg rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-lg">{saveError}</div>}
+        {!importDismissed && legacyCount > 0 && (path === '/documents' || path.startsWith('/invoice') || path.startsWith('/certificate') || path.startsWith('/letter') || path.startsWith('/payslip')) &&
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-900">
+            <p>{legacyCount} browser records are not in the shared registry. Older versions may include samples. Review the backup before importing.</p>
+            <div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={downloadLegacy} className="min-h-11 underline">Download backup</button><button type="button" onClick={importLegacy} className="min-h-11 underline">Import browser records</button><button type="button" onClick={() => setImportDismissed(true)} className="min-h-11 underline">Dismiss</button></div>
+          </div>}
         {/* Dynamic Route View Switching */}
-        <div id="route-panel-container">
-          
+        <div id="route-panel-container" tabIndex={-1} className={getDocumentSection(path) ? "document-workspace mx-auto max-w-screen-2xl outline-none" : "outline-none"}>
+          <DocumentNavigation path={path} navigate={navigate} editing={Boolean((path === "/invoice/new" && editingInvoice) || (path === "/certificate/new" && editingCertificate) || (path === "/letter/new" && editingLetter) || (path === "/payslip/new" && editingPayslip))} />
+
           {(path === '/' || path === '/lms') && (
             <AdminDashboard navigate={navigate} />
           )}
@@ -430,11 +345,11 @@ export default function App() {
           {path === '/team' && <TeamManagement />}
 
           {path === '/documents' && (
-            <Home navigate={navigate} />
+            <Home navigate={navigate} data={db} />
           )}
 
           {path === '/invoice/new' && (
-            <InvoiceBuilder 
+            <InvoiceBuilder
               onBack={() => { navigate('/invoice/old'); setEditingInvoice(null); }}
               clients={db.clients}
               existingInvoices={db.invoices}
@@ -446,7 +361,7 @@ export default function App() {
           )}
 
           {path === '/invoice/old' && (
-            <OldInvoices 
+            <OldInvoices
               invoices={db.invoices}
               clients={db.clients}
               settings={db.settings}
@@ -461,21 +376,21 @@ export default function App() {
           )}
 
           {path === '/certificate/new' && (
-            <CertificateBuilder 
+            <CertificateBuilder
               onBack={() => { navigate('/certificate/old'); setEditingCertificate(null); }}
               courses={db.courses}
               existingCertificates={db.certificates}
               settings={db.settings}
+              onAddCertificateOption={handleAddCertificateOption}
               onSaveCertificate={handleSaveCertificate}
               editingCertificate={editingCertificate}
               onSaveCourse={handleSaveCourse}
-              onDeleteCourse={handleDeleteCourse}
               navigate={navigate}
             />
           )}
 
           {path === '/certificate/old' && (
-            <OldCertificates 
+            <OldCertificates
               certificates={db.certificates}
               settings={db.settings}
               onSelectCertificate={setPreviewCertificate}
@@ -486,28 +401,26 @@ export default function App() {
           )}
 
           {path === '/certificate/bulk' && (
-            <BulkCertificateGenerator 
+            <BulkCertificateGenerator
               courses={db.courses}
               settings={db.settings}
               existingCertificates={db.certificates}
-              onSaveCertificates={(certs) => {
-                const updatedCertificates = [...certs, ...db.certificates];
-                updateDbState({ certificates: updatedCertificates });
-                addRecentActivity('bulk_generated', `Bulk generated and saved ${certs.length} certificates`);
-              }}
+              onAddCertificateOption={handleAddCertificateOption}
+              onSaveCourse={handleSaveCourse}
+              onSaveCertificates={(certs) => updateDbState({ certificates: [...certs, ...db.certificates] }, createActivity('bulk_generated', `Saved ${certs.length} certificates`))}
               navigate={navigate}
             />
           )}
 
           {path === '/settings' && (
-            <Settings 
+            <Settings
               settings={db.settings}
               onSaveSettings={handleSaveSettings}
             />
           )}
 
           {path === '/letter/new' && (
-            <LetterBuilder 
+            <LetterBuilder
               onBack={() => { navigate('/letter/old'); setEditingLetter(null); }}
               settings={db.settings}
               onSaveLetter={handleSaveLetter}
@@ -517,7 +430,7 @@ export default function App() {
           )}
 
           {path === '/letter/old' && (
-            <OldLetters 
+            <OldLetters
               letters={db.letters}
               settings={db.settings}
               onEditLetter={handleEditLetterTrigger}
@@ -527,9 +440,11 @@ export default function App() {
           )}
 
           {path === '/payslip/new' && (
-            <PayslipBuilder 
+            <PayslipBuilder
               onBack={() => { navigate('/payslip/old'); setEditingPayslip(null); }}
               settings={db.settings}
+              employees={db.employees}
+              onSaveEmployees={(employees) => updateDbState({ employees })}
               onSavePayslip={handleSavePayslip}
               editingPayslip={editingPayslip}
               navigate={navigate}
@@ -537,7 +452,7 @@ export default function App() {
           )}
 
           {path === '/payslip/old' && (
-            <OldPayslips 
+            <OldPayslips
               payslips={db.payslips}
               settings={db.settings}
               onEditPayslip={handleEditPayslipTrigger}
@@ -552,18 +467,18 @@ export default function App() {
 
       {/* OVERLAY POPUP MODAL: INVOICE DETAILED EXPORT VIEW */}
       {previewInvoice && createPortal(
-        <div 
+        <div
           className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-start justify-center p-4 overflow-y-auto cursor-zoom-out"
           onClick={() => setPreviewInvoice(null)}
         >
-          <div 
+          <div
             className="max-w-4xl w-full my-8 animate-zoom-in cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <InvoicePreview 
-              invoice={previewInvoice} 
-              settings={db.settings} 
-              onClose={() => setPreviewInvoice(null)} 
+            <InvoicePreview
+              invoice={previewInvoice}
+              settings={db.settings}
+              onClose={() => setPreviewInvoice(null)}
             />
           </div>
         </div>,
@@ -572,18 +487,18 @@ export default function App() {
 
       {/* OVERLAY POPUP MODAL: CERTIFICATE DETAILED EXPORT VIEW */}
       {previewCertificate && createPortal(
-        <div 
+        <div
           className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-zoom-out"
           onClick={() => setPreviewCertificate(null)}
         >
-          <div 
+          <div
             className="w-full h-full max-w-none animate-zoom-in cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <CertificatePreview 
-              certificate={previewCertificate} 
-              settings={db.settings} 
-              onClose={() => setPreviewCertificate(null)} 
+            <CertificatePreview
+              certificate={previewCertificate}
+              settings={db.settings}
+              onClose={() => setPreviewCertificate(null)}
               onUpdateCertificate={(updatedCert) => {
                 setPreviewCertificate(updatedCert);
                 const updated = db.certificates.map(c => c.id === updatedCert.id ? updatedCert : c);

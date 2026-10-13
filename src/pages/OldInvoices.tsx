@@ -30,13 +30,13 @@ import PrintableInvoice from '../components/invoice/PrintableInvoice';
 interface OldInvoicesProps {
   invoices: Invoice[];
   clients?: Client[];
-  settings?: CompanySettings;
+  settings: CompanySettings;
   onSelectInvoice: (inv: Invoice) => void;
   onEditInvoice: (inv: Invoice) => void;
-  onDeleteInvoice: (id: string | string[]) => void;
-  onBulkDeleteInvoices?: (ids: string[]) => void;
-  onBulkUpdateStatus?: (ids: string[], newStatus: 'Paid' | 'Unpaid' | 'Partially Paid') => void;
-  onBulkAddInvoices?: (newInvoices: Invoice[]) => void;
+  onDeleteInvoice: (id: string | string[]) => Promise<boolean>;
+  onBulkDeleteInvoices?: (ids: string[]) => Promise<boolean>;
+  onBulkUpdateStatus?: (ids: string[], newStatus: 'Paid' | 'Unpaid' | 'Partially Paid') => Promise<boolean>;
+  onBulkAddInvoices?: (newInvoices: Invoice[]) => Promise<boolean>;
   navigate: (path: string) => void;
 }
 
@@ -54,35 +54,10 @@ interface InvoiceGroup {
   invoices: Invoice[];
 }
 
-const defaultSettings: CompanySettings = {
-  name: 'LihaTech Solutions',
-  tagline: 'Innovating Digital Solutions',
-  email: 'contact@lihatech.com',
-  phone: '+91 9876543210',
-  address: '3rd Floor, Above Toy Villa, DRS Towers, Jawahar Nagar, Kolhapur',
-  website: 'https://lihatech.com',
-  gstNumber: '27AAAAA0000A1Z5',
-  panNumber: 'ABCDE1234F',
-  bankName: 'HDFC Bank',
-  accountNumber: '50200012345678',
-  ifscCode: 'HDFC0001234',
-  accountHolder: 'LihaTech Solutions Pvt Ltd',
-  upiId: 'lihatech@hdfcbank',
-  qrCodeUrl: '',
-  logoUrl: '',
-  directorName: 'Director LihaTech',
-  directorDesignation: 'Business Development',
-  signatureUrl: '',
-  stampUrl: '',
-  defaultGstPercent: 18,
-  defaultTerms: ['Payment due within 15 days.'],
-  certTemplate: 'royal'
-};
-
 export default function OldInvoices({
   invoices,
   clients = [],
-  settings = defaultSettings,
+  settings,
   onSelectInvoice,
   onEditInvoice,
   onDeleteInvoice,
@@ -221,12 +196,12 @@ export default function OldInvoices({
     setConfirmDeleteIds(group.invoices.map(i => i.id));
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (confirmDeleteIds) {
       if (onBulkDeleteInvoices) {
-        onBulkDeleteInvoices(confirmDeleteIds);
+        if (!await onBulkDeleteInvoices(confirmDeleteIds)) return;
       } else {
-        confirmDeleteIds.forEach(id => onDeleteInvoice(id));
+        if (!await onDeleteInvoice(confirmDeleteIds)) return;
       }
 
       if (selectedBulkGroup) {
@@ -250,21 +225,21 @@ export default function OldInvoices({
     }
   };
 
-  const executeBulkDelete = () => {
+  const executeBulkDelete = async () => {
     if (selectedIds.length > 0) {
       if (onBulkDeleteInvoices) {
-        onBulkDeleteInvoices(selectedIds);
+        if (!await onBulkDeleteInvoices(selectedIds)) return;
       } else {
-        selectedIds.forEach(id => onDeleteInvoice(id));
+        if (!await onDeleteInvoice(selectedIds)) return;
       }
       setSelectedIds([]);
       setConfirmBulkDelete(false);
     }
   };
 
-  const handleBulkStatusChange = (newStatus: 'Paid' | 'Unpaid' | 'Partially Paid') => {
+  const handleBulkStatusChange = async (newStatus: 'Paid' | 'Unpaid' | 'Partially Paid') => {
     if (onBulkUpdateStatus && selectedIds.length > 0) {
-      onBulkUpdateStatus(selectedIds, newStatus);
+      if (!await onBulkUpdateStatus(selectedIds, newStatus)) return;
       setStatusMenuOpen(false);
     }
   };
@@ -403,13 +378,13 @@ export default function OldInvoices({
   }, [selectedBulkGroup, selectedInvoiceId]);
 
   return (
-    <div className="space-y-6 animate-fade-in py-4 max-w-5xl mx-auto" id="old-invoices-page">
+    <div className="space-y-6 animate-fade-in py-2" id="old-invoices-page">
       
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">
         <div>
-          <span className="text-xxs font-bold text-[#0F766E] dark:text-teal-400 uppercase tracking-widest block">Billing Archive</span>
-          <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">Registered Invoice Ledger</h2>
+          <span className="text-xxs font-bold text-[#0F766E] dark:text-teal-400 uppercase tracking-widest block">Invoices</span>
+          <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Saved invoices</h1>
         </div>
         
         {/* Action Button Group */}
@@ -419,23 +394,15 @@ export default function OldInvoices({
             className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-teal-600 to-[#0F766E] hover:from-teal-700 hover:to-[#0D645E] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-sm"
           >
             <Layers className="h-3.5 w-3.5" />
-            <span>Bulk Generator</span>
+            <span>Create in bulk</span>
           </button>
 
           <button
             onClick={() => navigate('/invoice/new')}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-gray-100 dark:bg-slate-800 hover:bg-[#0F766E] hover:text-white dark:hover:bg-[#0F766E] text-slate-700 dark:text-slate-300 font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all"
+            className="studio-button studio-button-primary text-sm"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Create New</span>
-          </button>
-
-          <button
-            onClick={() => navigate('/invoice/old')}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0F766E] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-default transition-all shadow-sm"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span>View Previous</span>
+            <span>Create invoice</span>
           </button>
         </div>
       </div>
@@ -943,9 +910,8 @@ export default function OldInvoices({
         existingInvoices={invoices}
         clients={clients}
         onBulkAddInvoices={(newInvoices) => {
-          if (onBulkAddInvoices) {
-            onBulkAddInvoices(newInvoices);
-          }
+          if (onBulkAddInvoices) return onBulkAddInvoices(newInvoices);
+          return Promise.resolve(false);
         }}
       />
 
