@@ -11,7 +11,7 @@ const supabasePublishableKey = (
 export const supabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
 
 export const supabase: SupabaseClient | null = supabaseConfigured
-  ? createClient(supabaseUrl!, supabasePublishableKey!, {
+  ? createClient(import.meta.env.DEV ? `${window.location.origin}/supabase` : supabaseUrl!, supabasePublishableKey!, {
       accessToken: async () => {
         const user = auth?.currentUser;
         return user ? user.getIdToken() : null;

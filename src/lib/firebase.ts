@@ -34,10 +34,8 @@ export const auth = app ? getAuth(app) : null;
 export const signInWithCompanyGoogle = async () => {
   if (!auth) throw new Error('Firebase is not configured. Add the VITE_FIREBASE_* values to .env.local.');
   const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
-  if (!isAllowedCompanyUser(user)) {
-    await signOut(auth);
-    throw new Error(COMPANY_ACCESS_WARNING);
-  }
+  // Approved role and student registration are resolved in Supabase after sign-in.
+  // The company email check applies only to the admin branch in App.
   return user;
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import {
   getDefaultStudioData,
@@ -23,46 +23,41 @@ import {
   signOutCompany
 } from './lib/firebase';
 import {
-  ensureSupabaseAdmin,
   supabaseConfigured,
   loadCompanySettings,
   saveCompanySettings,
 } from './lib/supabase';
 import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, type StudioData } from './lib/documentStudio';
-import { LMS_API_BASE_URL, lmsRequest } from './lib/lmsApi';
+import { isLmsAccessDenied, rpc, type LmsSession } from './lib/lms';
 
 // Pages
 import Login from './pages/Login';
 import Home from './pages/Home';
-import InvoiceBuilder from './pages/InvoiceBuilder';
-import CertificateBuilder from './pages/CertificateBuilder';
-import OldInvoices from './pages/OldInvoices';
-import OldCertificates from './pages/OldCertificates';
-import BulkCertificateGenerator from './pages/BulkCertificateGenerator';
-import LetterBuilder from './pages/LetterBuilder';
-import OldLetters from './pages/OldLetters';
-import PayslipBuilder from './pages/PayslipBuilder';
-import OldPayslips from './pages/OldPayslips';
-import Settings from './pages/Settings';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminModule, { type AdminModuleKey } from './pages/AdminModule';
-import TeamManagement from './pages/TeamManagement';
+const InvoiceBuilder = lazy(() => import('./pages/InvoiceBuilder'));
+const CertificateBuilder = lazy(() => import('./pages/CertificateBuilder'));
+const OldInvoices = lazy(() => import('./pages/OldInvoices'));
+const OldCertificates = lazy(() => import('./pages/OldCertificates'));
+const BulkCertificateGenerator = lazy(() => import('./pages/BulkCertificateGenerator'));
+const LetterBuilder = lazy(() => import('./pages/LetterBuilder'));
+const OldLetters = lazy(() => import('./pages/OldLetters'));
+const PayslipBuilder = lazy(() => import('./pages/PayslipBuilder'));
+const OldPayslips = lazy(() => import('./pages/OldPayslips'));
+const Settings = lazy(() => import('./pages/Settings'));
+const LmsAdmin = lazy(() => import('./pages/admin/LmsAdmin'));
+const StudentPortal = lazy(() => import('./pages/student/StudentPortal'));
 
-const adminModuleByPath: Record<string, AdminModuleKey> = {
+const adminModuleByPath: Record<string, string> = {
   '/students': 'students',
   '/batches': 'batches',
-  '/courses': 'courses',
-  '/lectures': 'lectures',
+  '/materials': 'materials',
   '/mock-interviews': 'mocks',
-  '/certificate-requests': 'certificates',
-  '/reports': 'reports',
 };
 
 // Layout & Previews
 import Navbar from './components/layout/Navbar';
 import DocumentNavigation, { getDocumentSection } from './components/layout/DocumentNavigation';
-import InvoicePreview from './components/invoice/InvoicePreview';
-import CertificatePreview from './components/certificate/CertificatePreview';
+const InvoicePreview = lazy(() => import('./components/invoice/InvoicePreview'));
+const CertificatePreview = lazy(() => import('./components/certificate/CertificatePreview'));
 
 export default function App() {
   const authConfigured = firebaseConfigured && supabaseConfigured;
@@ -75,6 +70,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(!authConfigured);
   const [authEmail, setAuthEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState('');
+  const [session, setSession] = useState<LmsSession | null>(null);
 
   // Active Routing Path State (URL synchronized)
   const [path, setPath] = useState(() => {
@@ -115,51 +111,76 @@ export default function App() {
   useEffect(() => {
     if (!authConfigured) return;
 
-    return subscribeToCompanyAuth(async (user) => {
+    let generation = 0;
+    const unsubscribe = subscribeToCompanyAuth(async (user) => {
+      const current = ++generation;
       if (!user) {
         localStorage.removeItem('lt_is_logged_in');
         setIsLoggedIn(false);
+        setSession(null);
         setAuthEmail(null);
         setAuthReady(true);
         return;
       }
 
       try {
-        if (!isAllowedCompanyUser(user)) throw new Error(COMPANY_ACCESS_WARNING);
-        try {
-          await ensureSupabaseAdmin(user.uid);
-        } catch (profileError) {
-          if (!LMS_API_BASE_URL) throw profileError;
-          await lmsRequest('/auth/provision', { method: 'POST', body: JSON.stringify({}) });
-          await ensureSupabaseAdmin(user.uid);
+        setAuthReady(false);
+        const account = await rpc<LmsSession>('lms_session');
+        if (account.role === 'admin') {
+          if (!isAllowedCompanyUser(user)) throw new Error(COMPANY_ACCESS_WARNING);
+          const sharedSettings = await loadCompanySettings();
+          const sharedData = await loadStudioData(getDefaultStudioData());
+          sharedData.settings = normalizeSettings(sharedSettings || {});
+          setDb(sharedData);
         }
-        const sharedSettings = await loadCompanySettings();
-        const sharedData = await loadStudioData(getDefaultStudioData());
-        sharedData.settings = normalizeSettings(sharedSettings || {});
-        setDb(sharedData);
+        if (current !== generation) return;
+        setSession(account);
+        const currentPath = window.location.pathname;
+        const destination = account.role === 'student' ? (currentPath.startsWith('/student/') || currentPath === '/student' ? currentPath : '/student') : (currentPath.startsWith('/student') ? '/' : currentPath);
+        if (destination !== currentPath) { window.history.replaceState(null, '', destination); setPath(destination); }
         setAuthEmail(user.email ?? null);
         setAuthError('');
         localStorage.setItem('lt_is_logged_in', 'true');
         setIsLoggedIn(true);
       } catch (error) {
-        console.error('Supabase admin profile is unavailable.', error);
+        if (current !== generation) return;
+        console.error('Could not verify LMS access.', error);
           const supabaseMessage =
             error instanceof Error
               ? error.message
               : typeof error === 'object' && error !== null && 'message' in error
                 ? String(error.message)
-                : 'Could not verify admin access in Supabase.';
-          setAuthError(supabaseMessage);
-        await signOutCompany();
+                : 'Could not verify access. Check your connection and retry.';
+        setAuthError(supabaseMessage);
+        if (isLmsAccessDenied(error) || supabaseMessage === COMPANY_ACCESS_WARNING) await signOutCompany();
         localStorage.removeItem('lt_is_logged_in');
         setIsLoggedIn(false);
+        setSession(null);
         setAuthEmail(null);
       }
       finally {
-        setAuthReady(true);
+        if (current === generation) setAuthReady(true);
       }
     });
+    return () => { generation++; unsubscribe(); };
   }, [authConfigured]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let active = true;
+    const verify = async () => {
+      try { const next = await rpc<LmsSession>('lms_session'); if (active) { setSession(next); setAuthError(''); } }
+      catch (error) {
+        if (!active) return;
+        if (isLmsAccessDenied(error)) {
+          setAuthError('Your access changed. Sign in again or contact admin.');
+          void signOutCompany();
+        } else console.warn('Could not refresh LMS access; keeping the current session.', error);
+      }
+    };
+    const timer = window.setInterval(verify, 60000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [isLoggedIn]);
 
   // Editing pointers for Builders
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
@@ -238,6 +259,17 @@ export default function App() {
     db.letters.some(item => item.id === row.id) ? 'letter_updated' : 'letter_created', `${row.letterType} saved for ${row.candidateName}`);
   const handleSavePayslip = (row: Payslip) => saveDocument('payslips', row, '/payslip/old',
     db.payslips.some(item => item.id === row.id) ? 'payslip_updated' : 'payslip_created', `Payslip saved for ${row.employeeName} (${row.monthAndYear})`);
+  const handleSavePayslips = (rows: Payslip[]) => {
+    if (!rows.length) return Promise.resolve(false);
+    const existing = new Set(db.payslips.map(row => `${row.employeeId.trim().toLowerCase()}:${row.monthAndYear.trim().toLowerCase()}`));
+    const duplicate = rows.find(row => existing.has(`${row.employeeId.trim().toLowerCase()}:${row.monthAndYear.trim().toLowerCase()}`));
+    if (duplicate) {
+      setSaveError(`A payslip already exists for ${duplicate.employeeName} in ${duplicate.monthAndYear}.`);
+      return Promise.resolve(false);
+    }
+    return updateDbState({ payslips: [...rows, ...db.payslips] },
+      createActivity('bulk_generated', `Saved ${rows.length} monthly payslips for ${rows[0].employeeName}`));
+  };
   const handleDeleteInvoice = (ids: string | string[]) => archiveDocuments('invoices', ids, 'invoice_updated');
   const handleBulkDeleteInvoices = handleDeleteInvoice;
   const handleDeleteCertificate = (ids: string | string[]) => archiveDocuments('certificates', ids, 'certificate_updated');
@@ -280,12 +312,17 @@ export default function App() {
 
   // Auth check guard
   if (authConfigured && !authReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">Verifying admin access...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">Verifying your access...</div>;
   }
 
   if (!isLoggedIn) {
     return <Login authError={authError} />;
   }
+
+  if (session?.role === 'student') {
+    return <StudentPortal path={path} navigate={navigate} onLogout={handleLogout} />;
+  }
+  if (session?.role !== 'admin') return <Login authError="Contact admin for access." />;
 
   return (
     <div id="app-shell" className="min-h-screen bg-[#FAFAFA] font-sans transition-colors duration-250 dark:bg-slate-950">
@@ -310,15 +347,16 @@ export default function App() {
         <div id="route-panel-container" tabIndex={-1} className={getDocumentSection(path) ? "document-workspace mx-auto max-w-screen-2xl outline-none" : "outline-none"}>
           <DocumentNavigation path={path} navigate={navigate} editing={Boolean((path === "/invoice/new" && editingInvoice) || (path === "/certificate/new" && editingCertificate) || (path === "/letter/new" && editingLetter) || (path === "/payslip/new" && editingPayslip))} />
 
-          {(path === '/' || path === '/lms') && (
-            <AdminDashboard navigate={navigate} />
+          {(path === '/' || path === '/lms' || path === '/admin' || path === '/courses' || path === '/reports') && (
+            <LmsAdmin navigate={navigate} />
           )}
 
           {adminModuleByPath[path] && (
-            <AdminModule module={adminModuleByPath[path]} navigate={navigate} />
+            <LmsAdmin module={adminModuleByPath[path]} navigate={navigate} />
           )}
 
-          {path === '/team' && <TeamManagement />}
+          {path === '/team' && <LmsAdmin module="team" navigate={navigate} />}
+          {(path === '/lectures' || path === '/certificate-requests' || path.startsWith('/student')) && <div className="lms-panel"><h1>This page is outside the version 1 LMS workflow.</h1><button className="studio-secondary" onClick={() => navigate('/')}>Back to overview</button></div>}
 
           {path === '/documents' && (
             <Home navigate={navigate} data={db} />
@@ -420,8 +458,10 @@ export default function App() {
               onBack={() => { navigate('/payslip/old'); setEditingPayslip(null); }}
               settings={db.settings}
               employees={db.employees}
+              existingPayslips={db.payslips}
               onSaveEmployees={(employees) => updateDbState({ employees })}
               onSavePayslip={handleSavePayslip}
+              onSavePayslips={handleSavePayslips}
               editingPayslip={editingPayslip}
               navigate={navigate}
             />

@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BarChart3,
   BadgeCheck,
   BookOpen,
   FileStack,
-  GraduationCap,
   LayoutDashboard,
   Layers3,
   LogOut,
@@ -14,7 +12,6 @@ import {
   ShieldCheck,
   Sun,
   UsersRound,
-  Video,
   X,
 } from 'lucide-react';
 import { documentSections, getDocumentSection, StudioLink } from './DocumentNavigation';
@@ -38,17 +35,14 @@ const navGroups = [
   { label: 'Learning', items: [
     { path: '/students', label: 'Students', icon: UsersRound },
     { path: '/batches', label: 'Batches', icon: Layers3 },
-    { path: '/courses', label: 'Courses', icon: BookOpen },
-    { path: '/lectures', label: 'Live lectures', icon: Video },
+    { path: '/materials', label: 'Materials', icon: BookOpen },
     { path: '/mock-interviews', label: 'Mock interviews', icon: MessagesSquare },
   ] },
   { label: 'Operations', items: [
-    { path: '/certificate-requests', label: 'Certificates', icon: BadgeCheck },
     { path: '/documents', label: 'Document Studio', icon: FileStack },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
   ] },
   { label: 'Administration', items: [
-    { path: '/team', label: 'Instructors & admins', icon: GraduationCap },
+    { path: '/team', label: 'Admins', icon: ShieldCheck },
   ] },
 ];
 

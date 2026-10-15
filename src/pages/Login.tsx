@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { firebaseConfigured, signInWithCompanyGoogle } from '../lib/firebase';
+import { auth, firebaseConfigured, signInWithCompanyGoogle } from '../lib/firebase';
 import { supabaseConfigured } from '../lib/supabase';
 
 interface LoginProps { authError?: string; }
@@ -12,13 +12,14 @@ export default function Login({ authError = '' }: LoginProps) {
 
   const handleCompanyLogin = async () => {
     setError('');
+    if (auth?.currentUser) { window.location.reload(); return; }
     setIsLoading(true);
 
     try {
       await signInWithCompanyGoogle();
       setIsLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Company sign-in failed. Please try again.');
+      setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
       setIsLoading(false);
     }
   };
@@ -31,70 +32,36 @@ export default function Login({ authError = '' }: LoginProps) {
       <div className="relative z-10 mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-sm items-center justify-center">
         <div className="w-full">
           <div className="mb-8 text-center">
-            <img
-              src="/lihatech-logo-official.png"
-              alt="LihaTech"
-              className="mx-auto h-20 w-20 object-contain"
-            />
-            <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-[#062b4b]">
-              LihaTech
-            </h1>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#078edb]">
-              Document Studio
-            </p>
+            <img src="/lihatech-logo-official.png" alt="LihaTech" className="mx-auto h-20 w-20 object-contain" />
+            <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-[#062b4b]">LihaTech</h1>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#078edb]">Learning portal</p>
           </div>
 
           <section className="rounded-2xl border border-[#d7e8ee] bg-white p-7 shadow-[0_24px_70px_rgba(6,43,75,0.14),0_4px_18px_rgba(7,142,219,0.08)] sm:p-8">
             <div className="mb-7">
               <h2 className="text-xl font-bold text-[#062b4b]">Sign in</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Use a Google account that has an active admin or instructor profile.
+                Students: use the Google account with the email registered by your admin. Admins: use your approved LihaTech account.
               </p>
             </div>
 
-            {(authError || error) && (
-              <div
-                className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700"
-                role="alert"
-              >
-                {authError || error}
-              </div>
-            )}
+            {(authError || error) && <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700" role="alert">{authError || error}</div>}
 
             {authConfigured ? (
               <>
-                <button
-                  type="button"
-                  onClick={handleCompanyLogin}
-                  disabled={isLoading}
-                  className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#078edb] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#07547e] focus:outline-none focus:ring-2 focus:ring-[#078edb] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      Signing in...
-                    </>
-                  ) : (
-                    'Continue with Google'
-                  )}
+                <button type="button" onClick={handleCompanyLogin} disabled={isLoading} className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#078edb] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#07547e] focus:outline-none focus:ring-2 focus:ring-[#078edb] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />Signing in...</> : auth?.currentUser ? 'Retry access check' : 'Continue with Google'}
                 </button>
-                <p className="mt-4 text-center text-xs leading-5 text-slate-500">
-                  Access is granted only to active staff profiles in the LMS.
-                </p>
+                <p className="mt-4 text-center text-xs leading-5 text-slate-500">Your registered email determines student access. Contact admin if it is not recognized.</p>
               </>
             ) : (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700" role="alert">
-                Configure Firebase Auth and Supabase in `.env.local` to enable admin sign-in.
-              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-700" role="alert">Configure Firebase Auth and Supabase in `.env.local` to enable sign-in.</div>
             )}
           </section>
 
-          <p className="mt-6 text-center text-xs text-slate-400">
-            © {new Date().getFullYear()} LihaTech Solutions
-          </p>
+          <p className="mt-6 text-center text-xs text-slate-400">© {new Date().getFullYear()} LihaTech Solutions</p>
         </div>
       </div>
-
     </main>
   );
 }

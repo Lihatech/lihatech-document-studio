@@ -32,12 +32,10 @@ import { Certificate, CertificateLayout, CompanySettings, Course } from '../type
 import { generateCertificateId } from '../utils/idGenerator';
 import { 
   getDefaultCompletionText, 
+  getCertificateCompletionLine,
   COMPLETION_PRESETS,
   DEFAULT_PRESENTATION_TEXT,
   PRESENTATION_PRESETS,
-  DEFAULT_DATE_LINE_TEXT,
-  DATE_LINE_PRESETS,
-  getFormattedDateLine,
   getAutoProgramFontSize,
   PROGRAM_FONT_SIZE_PRESETS,
   CERTIFICATE_TYPE_PRESETS
@@ -101,7 +99,7 @@ export default function BulkCertificateGenerator({
   const [certificateType, setCertificateType] = useState('Course Completion');
   const [presentationText, setPresentationText] = useState(DEFAULT_PRESENTATION_TEXT);
   const [completionText, setCompletionText] = useState(() => getDefaultCompletionText('Course Completion'));
-  const [dateLineText, setDateLineText] = useState(DEFAULT_DATE_LINE_TEXT);
+  const [dateLineText, setDateLineText] = useState('');
   const [designTemplate, setDesignTemplate] = useState<'royal' | 'emerald' | 'academic' | 'modern-blue'>('royal');
   const [partnerProfileId, setPartnerProfileId] = useState('');
   const [certificateLayout, setCertificateLayout] = useState<CertificateLayout>({ offsets: {} });
@@ -186,7 +184,7 @@ export default function BulkCertificateGenerator({
         'Candidate Name': 'Example Candidate',
         'Certify Statement': 'THIS IS TO CERTIFY THAT',
         'Completion Statement': 'has successfully completed the course',
-        'Schedule Date Line': 'held in May 2026',
+        'Schedule Date Line': '',
         'Start Date': new Date().toISOString().split('T')[0],
         'End Date': new Date().toISOString().split('T')[0],
         'Event Date': '',
@@ -197,7 +195,7 @@ export default function BulkCertificateGenerator({
         'Candidate Name': 'Example Candidate',
         'Certify Statement': 'THIS IS TO CERTIFY THAT',
         'Completion Statement': 'in appreciation of outstanding contribution and dedication to',
-        'Schedule Date Line': 'held in May 2026',
+        'Schedule Date Line': '',
         'Start Date': new Date().toISOString().split('T')[0],
         'End Date': new Date().toISOString().split('T')[0],
         'Event Date': '',
@@ -208,7 +206,7 @@ export default function BulkCertificateGenerator({
         'Candidate Name': 'Example Candidate',
         'Certify Statement': 'PROUDLY PRESENTED TO',
         'Completion Statement': 'for outstanding performance and exceptional dedication to',
-        'Schedule Date Line': 'held in May 2026',
+        'Schedule Date Line': '',
         'Start Date': new Date().toISOString().split('T')[0],
         'End Date': new Date().toISOString().split('T')[0],
         'Event Date': '',
@@ -390,13 +388,13 @@ export default function BulkCertificateGenerator({
           enrollmentId: '',
           certificateType: certificateType,
           presentationText: activeStudent.presentationText || presentationText || DEFAULT_PRESENTATION_TEXT,
-          completionText: activeStudent.completionText || completionText || getDefaultCompletionText(certificateType),
+          completionText: getCertificateCompletionLine({ completionText: activeStudent.completionText || completionText, certificateType, programName }),
           programName: programName,
           programFontSize: programFontSize > 0 ? programFontSize : undefined,
           startDate: activeStudent.startDate,
           endDate: activeStudent.endDate,
           eventDate: activeStudent.eventDate,
-          dateLineText: activeStudent.dateLineText || dateLineText || getFormattedDateLine({ eventDate: activeStudent.eventDate, startDate: activeStudent.startDate, endDate: activeStudent.endDate }),
+          dateLineText: activeStudent.dateLineText || dateLineText,
           duration: '',
           mode: 'Online',
           location: '',
@@ -497,13 +495,13 @@ export default function BulkCertificateGenerator({
     enrollmentId: '',
     certificateType: certificateType,
     presentationText: processingItem.presentationText || presentationText || DEFAULT_PRESENTATION_TEXT,
-    completionText: processingItem.completionText || completionText || getDefaultCompletionText(certificateType),
+    completionText: getCertificateCompletionLine({ completionText: processingItem.completionText || completionText, certificateType, programName }),
     programName: programName,
     programFontSize: programFontSize > 0 ? programFontSize : undefined,
     startDate: processingItem.startDate,
     endDate: processingItem.endDate,
     eventDate: processingItem.eventDate,
-    dateLineText: processingItem.dateLineText || dateLineText || getFormattedDateLine({ eventDate: processingItem.eventDate, startDate: processingItem.startDate, endDate: processingItem.endDate }),
+    dateLineText: processingItem.dateLineText || dateLineText,
     duration: '',
     mode: 'Online',
     location: '',
@@ -541,13 +539,13 @@ export default function BulkCertificateGenerator({
     enrollmentId: '',
     certificateType: certificateType,
     presentationText: activePreviewStudent.presentationText || presentationText || DEFAULT_PRESENTATION_TEXT,
-    completionText: activePreviewStudent.completionText || completionText || getDefaultCompletionText(certificateType),
+    completionText: getCertificateCompletionLine({ completionText: activePreviewStudent.completionText || completionText, certificateType, programName }),
     programName: programName,
     programFontSize: programFontSize > 0 ? programFontSize : undefined,
     startDate: activePreviewStudent.startDate,
     endDate: activePreviewStudent.endDate,
     eventDate: activePreviewStudent.eventDate,
-    dateLineText: activePreviewStudent.dateLineText || dateLineText || getFormattedDateLine({ eventDate: activePreviewStudent.eventDate, startDate: activePreviewStudent.startDate, endDate: activePreviewStudent.endDate }),
+    dateLineText: activePreviewStudent.dateLineText || dateLineText,
     duration: '',
     mode: 'Online',
     location: '',
@@ -725,9 +723,11 @@ export default function BulkCertificateGenerator({
                   type="text"
                   value={completionText}
                   onChange={(e) => setCompletionText(e.target.value)}
+                  maxLength={120}
                   placeholder="e.g. has successfully completed the course"
                   className="w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-medium"
                 />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Use a short phrase; each candidate's name, program and dates appear separately.</p>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {COMPLETION_PRESETS.map(p => (
                     <button
@@ -751,39 +751,23 @@ export default function BulkCertificateGenerator({
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                    Schedule / Date Line (e.g. held in May 2026)
+                    Schedule / Date Line (optional override)
                   </label>
                   <button
                     type="button"
-                    onClick={() => setDateLineText(DEFAULT_DATE_LINE_TEXT)}
+                    onClick={() => setDateLineText('')}
                     className="text-[9px] text-amber-600 hover:text-amber-700 dark:text-amber-400 font-bold hover:underline cursor-pointer"
                   >
-                    Reset
+                    Use row dates
                   </button>
                 </div>
                 <input
                   type="text"
                   value={dateLineText}
                   onChange={(e) => setDateLineText(e.target.value)}
-                  placeholder="e.g. held in May 2026, held on 8 & 9 May 2026"
+                  placeholder="Uses each row's dates unless you enter custom wording"
                   className="w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-gray-900 dark:text-white font-medium"
                 />
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {DATE_LINE_PRESETS.map(p => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => setDateLineText(p.text)}
-                      className={`px-1.5 py-0.5 text-[9px] rounded-md border transition-colors cursor-pointer ${
-                        dateLineText === p.text
-                          ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
-                          : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Program Name */}
@@ -967,13 +951,13 @@ export default function BulkCertificateGenerator({
                     enrollmentId: '',
                     certificateType: certificateType,
                     presentationText: student.presentationText || presentationText || DEFAULT_PRESENTATION_TEXT,
-                    completionText: student.completionText || completionText || getDefaultCompletionText(certificateType),
+                    completionText: getCertificateCompletionLine({ completionText: student.completionText || completionText, certificateType, programName }),
                     programName: programName,
                     programFontSize: programFontSize > 0 ? programFontSize : undefined,
                     startDate: student.startDate,
                     endDate: student.endDate,
                     eventDate: student.eventDate,
-                    dateLineText: student.dateLineText || dateLineText || getFormattedDateLine({ eventDate: student.eventDate, startDate: student.startDate, endDate: student.endDate }),
+                    dateLineText: student.dateLineText || dateLineText,
                     duration: '',
                     mode: 'Online',
                     location: '',

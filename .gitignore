@@ -10,4 +10,10 @@ coverage/
 backend/env.txt
 __pycache__/
 *.pyc
+/lms-review.html
+/lms-review.js
+/lms-review.css
+/mock-calendar-review.html
+/mock-calendar-review.js
+/mock-calendar-review.css
 .venv/

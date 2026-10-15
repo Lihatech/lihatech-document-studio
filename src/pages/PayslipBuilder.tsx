@@ -20,13 +20,16 @@ import {
 } from 'lucide-react';
 import { Payslip, CompanySettings } from '../types';
 import PayslipPreview from '../components/payslip/PayslipPreview';
+import { getPayslipMonths } from '../utils/payslipMonths';
 
 interface PayslipBuilderProps {
   onBack: () => void;
   settings: CompanySettings;
   employees: EmployeeProfile[];
+  existingPayslips: Payslip[];
   onSaveEmployees: (employees: EmployeeProfile[]) => Promise<boolean>;
   onSavePayslip: (payslip: Payslip) => Promise<boolean>;
+  onSavePayslips: (payslips: Payslip[]) => Promise<boolean>;
   editingPayslip?: Payslip | null;
   navigate: (path: string) => void;
 }
@@ -37,8 +40,10 @@ export default function PayslipBuilder({
   onBack,
   settings,
   employees,
+  existingPayslips,
   onSaveEmployees,
   onSavePayslip,
+  onSavePayslips,
   editingPayslip = null,
   navigate
 }: PayslipBuilderProps) {
@@ -49,6 +54,10 @@ export default function PayslipBuilder({
   const [designation, setDesignation] = useState('');
   const [department, setDepartment] = useState('');
   const [monthAndYear, setMonthAndYear] = useState('');
+  const [monthlyRange, setMonthlyRange] = useState(false);
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [pan, setPan] = useState('');
   const [dateOfJoining, setDateOfJoining] = useState('');
@@ -85,6 +94,7 @@ export default function PayslipBuilder({
   // Load defaults or editing values
   useEffect(() => {
     if (editingPayslip) {
+      setMonthlyRange(false);
       setEmployeeName(editingPayslip.employeeName);
       setEmployeeId(editingPayslip.employeeId);
       setDesignation(editingPayslip.designation);
@@ -108,6 +118,7 @@ export default function PayslipBuilder({
       setEffectiveWorkDays(Number(editingPayslip.effectiveWorkDays ?? 30));
       setLop(Number(editingPayslip.lop ?? 0));
     } else {
+      setMonthlyRange(false);
       // Set to empty/0 to trigger grayed out placeholder mode!
       setEmployeeName('');
       setEmployeeId('');
@@ -138,6 +149,11 @@ export default function PayslipBuilder({
   const grossSalary = effectiveBasic + hra + allowances + bonus;
   const totalDeductions = pf + professionalTax + deductions;
   const netSalary = grossSalary - totalDeductions;
+  const months = getPayslipMonths(fromMonth, toMonth, Number(paymentDate.slice(-2)));
+  const duplicateMonths = months.filter(month => existingPayslips.some(payslip =>
+    payslip.employeeId.trim().toLowerCase() === employeeId.trim().toLowerCase() &&
+    payslip.monthAndYear.trim().toLowerCase() === month.monthAndYear.toLowerCase()
+  ));
 
   const handleSave = async () => {
     if (!employeeName.trim() || !employeeId.trim() || !monthAndYear.trim()) {
@@ -241,6 +257,53 @@ export default function PayslipBuilder({
     lop: lop || 0
   };
 
+  const firstMonth = months[0];
+  const previewPayslip = monthlyRange && firstMonth ? {
+    ...currentPayslip,
+    monthAndYear: firstMonth.monthAndYear,
+    paymentDate: firstMonth.paymentDate,
+    daysInMonth: firstMonth.daysInMonth,
+    effectiveWorkDays: Math.max(0, firstMonth.daysInMonth - lop),
+  } : currentPayslip;
+
+  const handleBulkSave = async () => {
+    if (bulkSaving) return;
+    if (!employeeName.trim() || !employeeId.trim()) {
+      alert('Employee name and employee ID are required.'); return;
+    }
+    if (!paymentDate || !months.length) {
+      alert('Choose a payment date and a valid month range of up to 60 months.'); return;
+    }
+    const amounts = [basicSalary, hra, allowances, bonus, pf, professionalTax, deductions];
+    if (amounts.some(value => !Number.isFinite(value) || value < 0) || totalDeductions > grossSalary) {
+      alert('Enter valid non-negative salary amounts; deductions cannot exceed gross salary.'); return;
+    }
+    if (!Number.isInteger(lop) || lop < 0 || months.some(month => lop > month.daysInMonth)) {
+      alert('Loss of pay days cannot exceed the days in any selected month.'); return;
+    }
+    if (duplicateMonths.length) {
+      alert(`A payslip already exists for ${employeeName.trim()} in ${duplicateMonths[0].monthAndYear}. Edit that payslip or choose another range.`); return;
+    }
+    const createdAt = new Date().toISOString();
+    const rows = months.map(month => ({
+      ...currentPayslip,
+      id: crypto.randomUUID(),
+      employeeName: employeeName.trim(), employeeId: employeeId.trim(),
+      designation: designation.trim(), department: department.trim(),
+      pan: pan.trim(), dateOfJoining: dateOfJoining.trim(), bankAccName: bankAccName.trim(),
+      location: location.trim(), pfAccountNumber: pfAccountNumber.trim(), uan: uan.trim(),
+      monthAndYear: month.monthAndYear, paymentDate: month.paymentDate,
+      daysInMonth: month.daysInMonth, effectiveWorkDays: month.daysInMonth - lop,
+      createdAt,
+    }));
+    setBulkSaving(true);
+    try {
+      if (await onSavePayslips(rows)) navigate('/payslip/old');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in py-2" id="payslip-builder-workspace">
       
@@ -276,11 +339,12 @@ export default function PayslipBuilder({
           </div>
 
           <button
-            onClick={handleSave}
+            onClick={monthlyRange ? handleBulkSave : handleSave}
+            disabled={bulkSaving}
             className="studio-button studio-button-primary text-sm"
           >
             <Save className="h-4 w-4" />
-            <span>Save Payslip</span>
+            <span>{bulkSaving ? 'Saving…' : monthlyRange ? months.length ? `Save ${months.length} monthly payslips` : 'Save monthly payslips' : 'Save Payslip'}</span>
           </button>
         </div>
       </div>
@@ -306,6 +370,16 @@ export default function PayslipBuilder({
               </button>
             </div>
 
+            {!editingPayslip && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3 dark:border-teal-900 dark:bg-teal-950/20">
+              <p className="mb-2 text-xs font-bold text-slate-700 dark:text-slate-200">Generate for</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Payslip period">
+                <button type="button" aria-pressed={!monthlyRange} onClick={() => setMonthlyRange(false)}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold ${!monthlyRange ? 'bg-teal-700 text-white' : 'border border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}>One month</button>
+                <button type="button" aria-pressed={monthlyRange} onClick={() => setMonthlyRange(true)}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold ${monthlyRange ? 'bg-teal-700 text-white' : 'border border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}>Monthly range</button>
+              </div>
+            </div>}
+
             <div className="grid grid-cols-1 gap-4">
               
               {/* Field: Employee Name */}
@@ -325,7 +399,7 @@ export default function PayslipBuilder({
               </div>
 
               {/* Grid block: ID & Role */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Employee ID</label>
                   <input
@@ -354,8 +428,8 @@ export default function PayslipBuilder({
               </div>
 
               {/* Grid block: Dept & Month */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={`space-y-1.5 ${monthlyRange ? 'sm:col-span-2' : ''}`}>
                   <label className="text-xs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Building className="h-3.5 w-3.5 text-slate-400" />
                     <span>Department</span>
@@ -369,7 +443,7 @@ export default function PayslipBuilder({
                     className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white focus:outline-hidden"
                   />
                 </div>
-                <div className="space-y-1.5">
+                {!monthlyRange && <div className="space-y-1.5">
                   <label className="text-xs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Month & Year</label>
                   <input
                     type="text"
@@ -379,8 +453,25 @@ export default function PayslipBuilder({
                     placeholder="June 2026"
                     className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white focus:outline-hidden"
                   />
-                </div>
+                </div>}
               </div>
+
+              {monthlyRange && <div className="rounded-xl border border-gray-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="space-y-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">From month
+                    <input type="month" value={fromMonth} onChange={event => setFromMonth(event.target.value)}
+                      className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                  </label>
+                  <label className="space-y-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">To month
+                    <input type="month" value={toMonth} min={fromMonth || undefined} onChange={event => setToMonth(event.target.value)}
+                      className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                  </label>
+                </div>
+                <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">One payslip is saved for every month in the range. Salary amounts and loss-of-pay days are copied; calendar days and paid days are calculated for each month. Edit an individual payslip later if its pay differs.</p>
+                {months.length > 0 && <p className="mt-2 text-xs font-bold text-teal-800 dark:text-teal-300">{months.length} payslip{months.length === 1 ? '' : 's'}: {months[0].monthAndYear}{months.length > 1 ? ` – ${months[months.length - 1].monthAndYear}` : ''}</p>}
+                {fromMonth && toMonth && !months.length && <p className="mt-2 text-xs font-bold text-rose-700" role="alert">Choose an end month on or after the start, within 60 months.</p>}
+                {duplicateMonths.length > 0 && <p className="mt-2 text-xs font-bold text-rose-700" role="alert">Already saved: {duplicateMonths.map(month => month.monthAndYear).join(', ')}. Edit those records or choose another range.</p>}
+              </div>}
 
               {/* Field: Payment Date */}
               <div className="space-y-1.5">
@@ -394,6 +485,7 @@ export default function PayslipBuilder({
                   onChange={(e) => setPaymentDate(e.target.value)}
                   className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white focus:outline-hidden"
                 />
+                {monthlyRange && <p className="text-xs text-slate-500 dark:text-slate-400">The selected day is used as the payment day each month, adjusted to month-end when needed.</p>}
               </div>
 
               {/* Additional Employee Details */}
@@ -476,20 +568,22 @@ export default function PayslipBuilder({
                     <label className="text-xxs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Days in Mo.</label>
                     <input
                       type="number"
-                      value={daysInMonth || ''}
+                      value={monthlyRange ? firstMonth?.daysInMonth ?? '' : daysInMonth || ''}
                       onChange={(e) => setDaysInMonth(Number(e.target.value))}
-                      placeholder="30"
-                      className="w-full px-2 py-2 text-xs rounded-lg border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white"
+                      placeholder={monthlyRange ? 'Auto' : '30'}
+                      disabled={monthlyRange}
+                      className="w-full px-2 py-2 text-xs rounded-lg border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xxs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Eff. Days</label>
                     <input
                       type="number"
-                      value={effectiveWorkDays || ''}
+                      value={monthlyRange ? firstMonth ? Math.max(0, firstMonth.daysInMonth - lop) : '' : effectiveWorkDays || ''}
                       onChange={(e) => setEffectiveWorkDays(Number(e.target.value))}
-                      placeholder="30"
-                      className="w-full px-2 py-2 text-xs rounded-lg border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white"
+                      placeholder={monthlyRange ? 'Auto' : '30'}
+                      disabled={monthlyRange}
+                      className="w-full px-2 py-2 text-xs rounded-lg border border-gray-250 dark:border-slate-700 bg-transparent text-gray-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -642,7 +736,7 @@ export default function PayslipBuilder({
       <div className={`w-full overflow-x-auto p-4 sm:p-6 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-gray-150 dark:border-slate-850/80 ${activeTab === 'preview' ? 'flex' : 'hidden lg:flex'} justify-center mt-6`}>
         <div className="min-w-[800px] lg:min-w-0 w-full flex justify-center">
           <PayslipPreview 
-            payslip={currentPayslip}
+            payslip={previewPayslip}
             settings={settings}
             showActions={false}
           />

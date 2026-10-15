@@ -1,9 +1,10 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({mode}) => {
+  const supabaseUrl = loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_URL;
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
@@ -12,6 +13,11 @@ export default defineConfig(() => {
       },
     },
     server: {
+      proxy: {
+        '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        ...(supabaseUrl ? {'/supabase': {target: supabaseUrl, changeOrigin: true, ws: true,
+          rewrite: (url: string) => url.replace(/^\/supabase/, '')}} : {}),
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

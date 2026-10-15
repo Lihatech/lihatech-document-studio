@@ -23,7 +23,7 @@ declare staff_uid text;
 begin
   select firebase_uid into staff_uid from public.admin_profiles where is_active and role = 'owner' and firebase_uid is not null limit 1;
   if staff_uid is null then raise exception 'Provision an owner before running the authenticated checks'; end if;
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_uid,'iss','https://securetoken.google.com/lihatech-document-studio','aud','lihatech-document-studio')::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_uid,'email_verified',true,'iss','https://securetoken.google.com/lihatech-document-studio','aud','lihatech-document-studio')::text,true);
 end;
 $$;
 set local role anon;

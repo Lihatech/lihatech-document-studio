@@ -4,3 +4,4 @@ firebase-admin>=6.5,<8
 supabase>=2,<3
 pydantic[email]>=2,<3
 python-dotenv>=1,<2
+httpx>=0.27,<1

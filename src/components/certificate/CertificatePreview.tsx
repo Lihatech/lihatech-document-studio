@@ -27,13 +27,12 @@ import {
 import { Certificate, CertificateLayout, CertificateLayoutElement, CertificateLayoutElementStyle, CompanySettings } from '../../types';
 import { 
   getDefaultCompletionText, 
+  getCertificateCompletionLine,
   COMPLETION_PRESETS, 
   getCertificateSubtitle, 
   getDefaultCertificateDescription,
   DEFAULT_PRESENTATION_TEXT,
   PRESENTATION_PRESETS,
-  DEFAULT_DATE_LINE_TEXT,
-  DATE_LINE_PRESETS,
   getFormattedDateLine,
   getAutoProgramFontSize,
   getProgramFontSizeStyle,
@@ -68,7 +67,7 @@ const DEFAULT_ELEMENT_SIZES: Record<CertificateLayoutElement, { width: number; h
   title: { width: 760, height: 100 },
   presentation: { width: 560, height: 34 },
   candidate: { width: 700, height: 96 },
-  completion: { width: 700, height: 42 },
+  completion: { width: 780, height: 56 },
   program: { width: 760, height: 72 },
   date: { width: 500, height: 34 },
   organizer: { width: 700, height: 36 },
@@ -978,10 +977,10 @@ export default function CertificatePreview({
               onPointerDown={(event) => handleLayoutPointerDown(event, 'completion')}
             >
               <p
-                className="text-[16px] text-slate-700 font-bold italic tracking-wide px-4"
-                style={{ ...getElementTextStyle('completion'), fontSize: `${16 * getElementScale('completion')}px` }}
+                className="mx-auto px-4 text-slate-700 font-bold italic text-center"
+                style={{ ...getElementTextStyle('completion'), fontSize: `${14 * getElementScale('completion')}px`, lineHeight: 1.35, maxWidth: '800px', overflowWrap: 'break-word' }}
               >
-                {statement || certificate.completionText || getDefaultCompletionText(certificate.certificateType)}
+                {getCertificateCompletionLine({ ...certificate, completionText: statement })}
               </p>
               {renderResizeHandle('completion')}
             </div>
@@ -989,7 +988,7 @@ export default function CertificatePreview({
             {/* Program Name */}
             <div
               className={`absolute left-0 right-0 mx-auto text-center flex justify-center ${layoutEditing ? 'cursor-move' : ''} ${getElementClass('program')}`}
-              style={getLayoutBoxStyle('program', '400px')}
+              style={getLayoutBoxStyle('program', '428px')}
               onPointerDown={(event) => handleLayoutPointerDown(event, 'program')}
             >
               <p className={`font-black text-black tracking-wider uppercase text-center ${showActions ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''}`}
@@ -1020,7 +1019,7 @@ export default function CertificatePreview({
             {/* Date Line */}
             <div
               className={`absolute left-0 right-0 mx-auto text-center ${layoutEditing ? 'cursor-move' : ''} ${getElementClass('date')}`}
-              style={getLayoutBoxStyle('date', '478px')}
+              style={getLayoutBoxStyle('date', '484px')}
               onPointerDown={(event) => handleLayoutPointerDown(event, 'date')}
             >
               <p
@@ -1035,7 +1034,7 @@ export default function CertificatePreview({
             {/* Organized By Line */}
             <div
               className={`absolute left-0 right-0 mx-auto text-center ${layoutEditing ? 'cursor-move' : ''} ${getElementClass('organizer')}`}
-              style={getLayoutBoxStyle('organizer', '506px')}
+              style={getLayoutBoxStyle('organizer', '510px')}
               onPointerDown={(event) => handleLayoutPointerDown(event, 'organizer')}
             >
               <p
@@ -1056,9 +1055,9 @@ export default function CertificatePreview({
               <p className="text-slate-700 font-bold text-center border-t border-slate-300 pt-2.5"
                  style={{
                    ...getElementTextStyle('description'),
-                   fontSize: `${17 * getElementScale('description')}px`,
-                   lineHeight: '1.5',
-                   maxWidth: '540px',
+                   fontSize: `${14 * getElementScale('description')}px`,
+                   lineHeight: '1.35',
+                   maxWidth: '600px',
                    margin: '0 auto',
                    whiteSpace: 'normal'
                  }}>
@@ -1625,10 +1624,10 @@ export default function CertificatePreview({
               <button
                 type="button"
                 onClick={() => {
-                  const def = getFormattedDateLine({ eventDate: certificate.eventDate, startDate: certificate.startDate, endDate: certificate.endDate });
+                  const def = getFormattedDateLine({ eventDate: certificate.eventDate, startDate: certificate.startDate, endDate: certificate.endDate, certificateType: certificate.certificateType });
                   setDateLine(def);
                   if (onUpdateCertificate) {
-                    onUpdateCertificate({ ...certificate, dateLineText: def });
+                    onUpdateCertificate({ ...certificate, dateLineText: '' });
                   }
                 }}
                 className="text-[10px] text-amber-700 dark:text-amber-400 hover:underline font-bold cursor-pointer"
@@ -1646,30 +1645,9 @@ export default function CertificatePreview({
                   onUpdateCertificate({ ...certificate, dateLineText: val });
                 }
               }}
-              placeholder="e.g. held in May 2026, held on 8 & 9 May 2026"
+              placeholder="Uses the certificate dates unless you enter custom wording"
               className="flex-1 rounded-xl border border-amber-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs text-gray-900 dark:text-white font-medium outline-none focus:ring-2 focus:ring-amber-500"
             />
-            <div className="flex flex-wrap items-center gap-1.5">
-              {DATE_LINE_PRESETS.map(preset => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => {
-                    setDateLine(preset.text);
-                    if (onUpdateCertificate) {
-                      onUpdateCertificate({ ...certificate, dateLineText: preset.text });
-                    }
-                  }}
-                  className={`px-2 py-0.5 text-[10px] rounded-lg transition-all cursor-pointer font-medium ${
-                    dateLine === preset.text
-                      ? 'bg-amber-600 text-white font-bold shadow-xs'
-                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:bg-amber-100/50 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}

@@ -10,11 +10,11 @@ import { Certificate, CertificateLayout, CertificateLayoutElement, Course, Compa
 import { generateCertificateId } from '../utils/idGenerator';
 import { 
   getDefaultCompletionText, 
+  getCertificateCompletionLine,
   COMPLETION_PRESETS,
   DEFAULT_PRESENTATION_TEXT,
   PRESENTATION_PRESETS,
-  DEFAULT_DATE_LINE_TEXT,
-  DATE_LINE_PRESETS,
+  LEGACY_DATE_LINE_TEXT,
   getFormattedDateLine,
   CERTIFICATE_TYPE_PRESETS
 } from '../utils/certificateUtils';
@@ -55,7 +55,7 @@ export default function CertificateBuilder({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [eventDate, setEventDate] = useState('');
-  const [dateLineText, setDateLineText] = useState(DEFAULT_DATE_LINE_TEXT);
+  const [dateLineText, setDateLineText] = useState('');
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [designTemplate, setDesignTemplate] = useState<'royal' | 'emerald' | 'academic' | 'modern-blue'>('royal');
   const [partnerProfileId, setPartnerProfileId] = useState('');
@@ -108,18 +108,14 @@ export default function CertificateBuilder({
       setCandidateName(editingCertificate.candidateName);
       setCertificateType(editingCertificate.certificateType);
       setPresentationText(editingCertificate.presentationText || DEFAULT_PRESENTATION_TEXT);
-      setCompletionText(
-        editingCertificate.completionText || getDefaultCompletionText(editingCertificate.certificateType)
-      );
+      setCompletionText(getCertificateCompletionLine(editingCertificate));
       setProgramName(editingCertificate.programName);
       setProgramFontSize(editingCertificate.programFontSize || 0);
       setStartDate(editingCertificate.startDate || '');
       setEndDate(editingCertificate.endDate || '');
       setEventDate(editingCertificate.eventDate || '');
-      setDateLineText(
-        editingCertificate.dateLineText || 
-        (editingCertificate.eventDate ? (editingCertificate.eventDate.toLowerCase().startsWith('held') ? editingCertificate.eventDate : `held on ${editingCertificate.eventDate}`) : DEFAULT_DATE_LINE_TEXT)
-      );
+      setDateLineText(editingCertificate.dateLineText === LEGACY_DATE_LINE_TEXT && (editingCertificate.startDate || editingCertificate.endDate)
+        ? '' : editingCertificate.dateLineText || editingCertificate.eventDate || '');
       setIssueDate(editingCertificate.issueDate);
       setDesignTemplate(editingCertificate.designTemplate);
       setPartnerProfileId(editingCertificate.partnerProfileId || '');
@@ -129,7 +125,7 @@ export default function CertificateBuilder({
       const existing = existingCertificates.map(c => c.certificateId);
       setCertificateId(generateCertificateId(existing));
       setPresentationText(DEFAULT_PRESENTATION_TEXT);
-      setDateLineText(DEFAULT_DATE_LINE_TEXT);
+      setDateLineText('');
       setProgramFontSize(0);
       setCertificateLayout({ offsets: {} });
       setPartnerProfileId(settings.certificatePartners?.[0]?.id || '');
@@ -170,13 +166,13 @@ export default function CertificateBuilder({
       enrollmentId: '',
       certificateType,
       presentationText: presentationText.trim() || DEFAULT_PRESENTATION_TEXT,
-      completionText: completionText.trim() || getDefaultCompletionText(certificateType),
+      completionText: getCertificateCompletionLine({ completionText, certificateType, programName }),
       programName,
       programFontSize: programFontSize > 0 ? programFontSize : undefined,
       startDate,
       endDate,
       eventDate,
-      dateLineText: dateLineText.trim() || DEFAULT_DATE_LINE_TEXT,
+      dateLineText: dateLineText.trim(),
       duration: '',
       mode: 'Online',
       location: '',
@@ -365,9 +361,11 @@ export default function CertificateBuilder({
               required
               value={completionText}
               onChange={(e) => setCompletionText(e.target.value)}
+              maxLength={120}
               placeholder="e.g. has successfully completed the course"
               className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-medium"
             />
+            <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400">Keep this short. The candidate name, program and dates appear separately on the certificate.</p>
             {/* Presets */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className="text-[9px] text-gray-400 uppercase font-bold mr-1">Presets:</span>
@@ -464,56 +462,33 @@ export default function CertificateBuilder({
             </div>
           </div>
 
-          {/* Event Schedule / Date Line ("held in May 2026") */}
+          {/* Optional wording overrides the date range above. */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                Event Schedule / Date Line (e.g. held in May 2026) *
+                Event Schedule / Date Line (optional)
               </label>
               <button
                 type="button"
                 onClick={() => {
-                  setDateLineText(DEFAULT_DATE_LINE_TEXT);
+                  setDateLineText('');
                   setEventDate('');
                 }}
                 className="text-[10px] text-amber-600 hover:text-amber-700 dark:text-amber-400 font-bold cursor-pointer hover:underline"
               >
-                Reset Default
+                Use dates above
               </button>
             </div>
             <input
               type="text"
-              required
               value={dateLineText}
               onChange={(e) => {
                 setDateLineText(e.target.value);
                 setEventDate(e.target.value);
               }}
-              placeholder="e.g. held in May 2026, held on 8 & 9 May 2026"
+              placeholder={getFormattedDateLine({ startDate, endDate, certificateType }) || 'Enter dates above or write a custom line'}
               className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white text-gray-900 dark:text-white font-medium"
             />
-            {/* Presets */}
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[9px] text-gray-400 uppercase font-bold mr-1">Presets:</span>
-              {DATE_LINE_PRESETS.map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => {
-                    setDateLineText(preset.text);
-                    setEventDate(preset.text);
-                  }}
-                  className={`px-2 py-0.5 text-[10px] rounded-md border transition-all cursor-pointer ${
-                    dateLineText === preset.text
-                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
-                      : 'bg-gray-100 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
-                  }`}
-                  title={preset.text}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Date of Issue */}
@@ -565,13 +540,13 @@ export default function CertificateBuilder({
                     enrollmentId: '',
                     certificateType,
                     presentationText: presentationText.trim() || DEFAULT_PRESENTATION_TEXT,
-                    completionText: completionText.trim() || getDefaultCompletionText(certificateType),
+                    completionText: getCertificateCompletionLine({ completionText, certificateType, programName }),
                     programName,
                     programFontSize: programFontSize > 0 ? programFontSize : undefined,
                     startDate,
                     endDate,
                     eventDate,
-                    dateLineText: dateLineText.trim() || DEFAULT_DATE_LINE_TEXT,
+                    dateLineText: dateLineText.trim(),
                     duration: '',
                     mode: 'Online',
                     location: '',

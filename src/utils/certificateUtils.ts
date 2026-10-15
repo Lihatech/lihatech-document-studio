@@ -12,7 +12,7 @@ export interface CertificateTypePreset {
 
 export const CERTIFICATE_TYPE_PRESETS: CertificateTypePreset[] = [
   { value: 'Course Completion', label: 'Course Completion', defaultText: 'has successfully completed the course' },
-  { value: 'Internship Completion', label: 'Internship Completion', defaultText: 'has successfully completed the internship program on' },
+  { value: 'Internship Completion', label: 'Internship Completion', defaultText: 'has successfully completed the internship program' },
   { value: 'Outstanding Performer', label: 'Outstanding Performer', defaultText: 'for outstanding performance and exceptional dedication to' },
   { value: 'Certificate of Excellence', label: 'Certificate of Excellence', defaultText: 'in recognition of exceptional performance and academic excellence in' },
   { value: 'Workshop Participation', label: 'Workshop Participation', defaultText: 'has successfully participated in the' },
@@ -62,7 +62,7 @@ export const COMPLETION_PRESETS: CompletionPreset[] = [
   {
     label: 'Internship',
     type: 'Internship Completion',
-    text: 'has successfully completed the internship program on'
+    text: 'has successfully completed the internship program'
   },
   {
     label: 'Participation',
@@ -100,7 +100,7 @@ export function getDefaultCompletionText(certificateType: string = ''): string {
     return 'in appreciation of outstanding contribution and dedication to';
   }
   if (type.includes('internship')) {
-    return 'has successfully completed the internship program on';
+    return 'has successfully completed the internship program';
   }
   if (type.includes('participation') || type.includes('workshop')) {
     return 'has successfully participated in the';
@@ -118,6 +118,16 @@ export function getDefaultCompletionText(certificateType: string = ''): string {
     return 'in recognition of exceptional performance and academic excellence in';
   }
   return 'has successfully completed the course';
+}
+
+export function getCertificateCompletionLine(cert: { completionText?: string; certificateType: string; programName?: string }): string {
+  const text = cert.completionText?.trim() || getDefaultCompletionText(cert.certificateType);
+  // Older free-form paragraphs repeat fields that have their own place on the certificate.
+  if (text.length > 120 || /this is to certify|\[(?:candidate\s+name|start\s+date|end\s+date)\]/i.test(text)) {
+    return getDefaultCompletionText(cert.certificateType);
+  }
+  return cert.certificateType.toLowerCase().includes('internship') && cert.programName?.toLowerCase().includes('internship')
+    ? text.replace(/\s+on$/i, '') : text;
 }
 
 export function getCertificateSubtitle(certificateType: string = ''): string {
@@ -162,6 +172,9 @@ export function getCertificateSubtitle(certificateType: string = ''): string {
 
 export function getDefaultCertificateDescription(certificateType: string = '', defaultSettingText?: string): string {
   const lower = (certificateType || '').toLowerCase().trim();
+  if (lower.includes('internship')) {
+    return 'During the internship, the candidate demonstrated dedication, practical skills and professional commitment.';
+  }
   if (lower.includes('outstanding') || lower.includes('performer')) {
     return 'In recognition of exceptional performance, exemplary leadership, and remarkable commitment to excellence throughout the program.';
   }
@@ -183,23 +196,13 @@ export const PRESENTATION_PRESETS: { label: string; text: string }[] = [
   { label: 'Honoring', text: 'HONORING' }
 ];
 
-export const DEFAULT_DATE_LINE_TEXT = 'held in May 2026';
+export const LEGACY_DATE_LINE_TEXT = 'held in May 2026';
 
-export const DATE_LINE_PRESETS: { label: string; text: string }[] = [
-  { label: 'held in May 2026', text: 'held in May 2026' },
-  { label: 'held in June 2026', text: 'held in June 2026' },
-  { label: 'held on 8 & 9 May 2026', text: 'held on 8 & 9 May 2026' },
-  { label: 'held from May 2026 to June 2026', text: 'held from May 2026 to June 2026' },
-  { label: 'held in July 2026', text: 'held in July 2026' },
-  { label: 'conducted in May 2026', text: 'conducted in May 2026' },
-  { label: 'conducted during 2026', text: 'conducted during 2026' }
-];
-
-export function getFormattedDateLine(cert: { dateLineText?: string; eventDate?: string; startDate?: string; endDate?: string }): string {
-  if (cert.dateLineText && cert.dateLineText.trim()) {
+export function getFormattedDateLine(cert: { dateLineText?: string; eventDate?: string; startDate?: string; endDate?: string; certificateType?: string }): string {
+  if (cert.dateLineText?.trim() && (cert.dateLineText.trim() !== LEGACY_DATE_LINE_TEXT || (!cert.startDate && !cert.endDate))) {
     return cert.dateLineText.trim();
   }
-  if (cert.eventDate && cert.eventDate.trim()) {
+  if (cert.eventDate?.trim() && cert.eventDate.trim() !== LEGACY_DATE_LINE_TEXT) {
     const trimmed = cert.eventDate.trim();
     const lower = trimmed.toLowerCase();
     if (lower.startsWith('held') || lower.startsWith('on ') || lower.startsWith('from ') || lower.startsWith('during ') || lower.startsWith('in ')) {
@@ -207,10 +210,17 @@ export function getFormattedDateLine(cert: { dateLineText?: string; eventDate?: 
     }
     return `held on ${trimmed}`;
   }
+  const format = (date: string) => {
+    const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00Z` : date);
+    return Number.isNaN(parsed.getTime()) ? date : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(parsed);
+  };
+  const internship = cert.certificateType?.toLowerCase().includes('internship');
   if (cert.startDate && cert.endDate) {
-    return `held from ${cert.startDate} to ${cert.endDate}`;
+    if (cert.startDate === cert.endDate) return internship ? `Internship completed on ${format(cert.endDate)}` : `held on ${format(cert.startDate)}`;
+    return internship ? `Internship period: ${format(cert.startDate)} to ${format(cert.endDate)}` : `held from ${format(cert.startDate)} to ${format(cert.endDate)}`;
   }
-  return DEFAULT_DATE_LINE_TEXT;
+  if (cert.startDate || cert.endDate) return internship ? `Internship date: ${format(cert.startDate || cert.endDate!)}` : `held on ${format(cert.startDate || cert.endDate!)}`;
+  return cert.dateLineText?.trim() || '';
 }
 
 export function getAutoProgramFontSize(name: string = ''): number {
