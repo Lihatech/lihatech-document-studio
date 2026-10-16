@@ -37,11 +37,12 @@
 .student-portal .booking-inline-alert { margin:14px 0; padding:12px 14px; border:1px solid #e6d1a3; border-radius:9px; background:#fff8ea; color:#684614; font-size:13px; line-height:1.5; }
 .student-portal .booking-inline-alert button { border:0; background:transparent; color:#07567d; font-weight:700; text-decoration:underline; }
 .student-portal .booking-loading { padding:35px 0; color:var(--muted); }
-.student-portal .booking-busy-list { margin-bottom:20px; padding:14px 16px; border:1px solid #dfebef; border-radius:11px; background:#f6f9fa; }
-.student-portal .booking-busy-list>div:first-child { display:flex; align-items:center; gap:8px; color:#364c59; font-size:13px; }
-.student-portal .booking-busy-list p { margin:6px 0 10px; color:var(--muted); font-size:12px; }
-.student-portal .booking-busy-ranges { display:flex; flex-wrap:wrap; gap:7px; }
-.student-portal .booking-busy-ranges span { padding:6px 9px; border-radius:7px; background:#e7edf0; color:#344c59; font-size:12px; font-weight:700; }
+.student-portal .booking-slot-key { display:flex; flex-wrap:wrap; gap:8px 16px; margin:-2px 0 14px; color:var(--muted); font-size:11px; font-weight:650; }
+.student-portal .booking-slot-key span { display:inline-flex; align-items:center; gap:6px; }
+.student-portal .booking-slot-key i { width:9px; height:9px; border-radius:3px; }
+.student-portal .booking-slot-key .is-open { background:#1a9f89; }
+.student-portal .booking-slot-key .is-busy { background:#dc5661; }
+.student-portal .booking-slot-key .is-past { background:#a5b8c0; }
 .student-portal .booking-available-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:12px; }
 .student-portal .booking-available-head strong { font-size:15px; }
 .student-portal .booking-available-head span { color:var(--muted); font-size:12px; }
@@ -52,6 +53,15 @@
 .student-portal .booking-time-option span { font-size:15px; font-weight:750; }
 .student-portal .booking-time-option small { margin-top:3px; color:var(--muted); font-size:12px; }
 .student-portal .booking-time-option svg { position:absolute; top:12px; right:11px; color:#087f73; }
+.student-portal .booking-time-option.is-busy { border-color:#f2b9bf; background:#fff0f1; color:#9b233b; cursor:not-allowed; }
+.student-portal .booking-time-option.is-busy small { color:#a7364b; font-weight:750; }
+.student-portal .booking-time-option.is-past { border-color:#e1e8eb; background:#f4f7f8; color:#647b87; cursor:not-allowed; }
+.student-portal .booking-time-option.is-past small { color:#6f8590; }
+.student-portal .booking-time-option:disabled:hover { border-color:#f2b9bf; background:#fff0f1; }
+.student-portal .booking-time-option.is-past:disabled:hover { border-color:#e1e8eb; background:#f4f7f8; }
+.student-portal .booking-date-panel,.student-portal .booking-time-panel,.student-portal .booking-upcoming { box-shadow:0 9px 28px rgba(5,46,73,.06); }
+.student-portal .booking-hero { background:linear-gradient(112deg,#063553,#086380 72%,#087d85); box-shadow:0 16px 36px rgba(4,54,78,.15); }
+.student-portal .booking-date-markers .busy,.student-portal .booking-date-key .busy { background:#dc5661; }
 .student-portal .booking-no-times { display:grid; justify-items:start; gap:7px; padding:32px 0; color:var(--muted); }
 .student-portal .booking-no-times strong { color:var(--ink); }
 .student-portal .booking-no-times p { margin:0; }

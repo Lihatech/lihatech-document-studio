@@ -18,6 +18,7 @@ EVENT_ID = "lms" + BOOKING_ID.replace("-", "")
 
 class CalendarTests(unittest.TestCase):
     def setUp(self):
+        mock_calendar._cached_token = None
         self.environment = patch.dict(os.environ, {
             "GOOGLE_CALENDAR_ID": "primary",
             "GOOGLE_OAUTH_CLIENT_ID": "client",
@@ -110,6 +111,20 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(periods, [("2026-10-20T10:00:00+05:30", "2026-10-20T11:00:00+05:30")])
         self.assertEqual(seen[0].url.path, "/calendar/v3/freeBusy")
         self.assertEqual(json.loads(seen[0].content)["items"], [{"id": "primary"}])
+
+    def test_repeated_availability_reuses_unexpired_oauth_token(self):
+        token_requests = []
+
+        def respond(request):
+            if request.url.host == "oauth2.googleapis.com":
+                token_requests.append(request)
+                return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+            return httpx.Response(200, json={"calendars": {"primary": {"busy": []}}})
+
+        with self.client_for(respond):
+            mock_calendar.busy_periods("2026-10-20T09:00:00+05:30", "2026-10-20T18:00:00+05:30")
+            mock_calendar.busy_periods("2026-10-21T09:00:00+05:30", "2026-10-21T18:00:00+05:30")
+        self.assertEqual(len(token_requests), 1)
 
 
 if __name__ == "__main__":

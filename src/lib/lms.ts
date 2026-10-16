@@ -57,10 +57,10 @@ export async function removeAssignment(table: LmsTable, keys: Row) {
   const { error } = await query;
   if (error) throw new Error(error.message);
 }
-export const displayDate = (value?: string) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'No expiry';
-// A batch date includes the whole day in Sri Lanka (UTC+05:30).
+export const displayDate = (value?: string) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }) : 'No expiry';
+// A batch date includes the whole day in Kolhapur (UTC+05:30).
 export const batchEndInstant = (date?: string) => date ? new Date(`${date}T18:30:00Z`) : null;
-export const batchDateLabel = (date?: string) => date ? new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB',{dateStyle:'medium',timeZone:'Asia/Colombo'}) : 'Not set';
+export const batchDateLabel = (date?: string) => date ? new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB',{dateStyle:'medium',timeZone:'Asia/Kolkata'}) : 'Not set';
 export const localDate = (value?: string) => {
   if (!value) return '';
   const d = new Date(value);

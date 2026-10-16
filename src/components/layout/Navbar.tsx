@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BadgeCheck,
   BookOpen,
+  ChevronRight,
   FileStack,
   LayoutDashboard,
   Layers3,
@@ -84,8 +85,8 @@ export default function Navbar({ path, navigate, settings, userEmail, darkMode, 
   const currentTitle = isDocumentPath ? (path === '/documents' ? 'Document Studio' : `Document Studio / ${documentSection!.label}`) : pageTitles[path] || 'LMS Admin';
 
   const sidebar = (
-    <div className="flex h-full min-h-0 flex-col bg-white dark:bg-slate-900">
-      <button onClick={() => { navigate('/'); setMobileOpen(false); }} className="flex min-h-[76px] items-center gap-3 border-b border-slate-200 px-5 text-left dark:border-slate-800" aria-label="Go to overview">
+    <div className="flex h-full min-h-0 flex-col bg-[#f8fbfc] dark:bg-slate-900">
+      <button onClick={() => { navigate('/'); setMobileOpen(false); }} className="flex min-h-[76px] items-center gap-3 border-b border-slate-200 bg-white px-5 text-left dark:border-slate-800 dark:bg-slate-900" aria-label="Go to overview">
         <img src={companyLogo} alt="" className="h-10 w-10 object-contain" />
         <span className="min-w-0"><span className="block truncate text-sm font-extrabold text-slate-950 dark:text-white">{settings.name}</span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-cyan-300">LMS Admin</span></span>
       </button>
@@ -98,7 +99,7 @@ export default function Navbar({ path, navigate, settings, userEmail, darkMode, 
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = path === item.path || (item.path === '/documents' && isDocumentPath) || (item.path === '/' && path === '/lms');
-                return <div key={item.path}><button onClick={() => { navigate(item.path); setMobileOpen(false); }} aria-current={active ? (item.path === path ? 'page' : 'location') : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${active ? 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}><Icon size={18} className={active ? 'text-sky-600 dark:text-cyan-300' : 'text-slate-400'} /><span>{item.label}</span></button>
+                return <div key={item.path}><button onClick={() => { navigate(item.path); setMobileOpen(false); }} aria-current={active ? (item.path === path ? 'page' : 'location') : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${active ? 'bg-[#e3f4f5] text-[#075a70] shadow-[inset_3px_0_0_#0b9fa5] dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-[#eaf4f6] hover:text-[#075a70] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}><Icon size={18} className={active ? 'text-[#087f8a] dark:text-cyan-300' : 'text-slate-400'} /><span>{item.label}</span></button>
                   {item.path === '/documents' && isDocumentPath && <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">{documentSections.filter(section => section.path !== '/documents').map(section => <StudioLink key={section.path} href={section.path} navigate={to => { navigate(to); setMobileOpen(false); }} aria-current={documentSection?.path === section.path ? 'page' : undefined} className={`flex min-h-11 items-center rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${documentSection?.path === section.path ? 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>{section.label}</StudioLink>)}</div>}
                 </div>;
               })}
@@ -107,15 +108,16 @@ export default function Navbar({ path, navigate, settings, userEmail, darkMode, 
         ))}
       </nav>
 
-      <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-        <div className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2">
+      <div className="border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <details className="group rounded-xl border border-slate-200 bg-[#f3f9fa] open:border-[#a8d5d8] dark:border-slate-700 dark:bg-slate-800">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-3 py-2 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-extrabold text-sky-800 dark:bg-sky-950 dark:text-cyan-300">{(userEmail?.[0] || 'A').toUpperCase()}</div>
-          <div className="min-w-0"><p className="truncate text-xs font-bold text-slate-900 dark:text-white">Admin account</p><p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{userEmail || 'Authenticated'}</p></div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900 dark:text-white">{userEmail?.split('@')[0] || 'Admin account'}</p><p className="truncate text-[11px] text-slate-500 dark:text-slate-400">View admin profile</p></div><ChevronRight size={16} className="text-slate-500 transition-transform group-open:rotate-90"/>
+        </summary>
+        <div className="border-t border-slate-200 px-3 pb-3 pt-2 dark:border-slate-700"><p className="mb-1 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Admin account</p><p className="mb-3 break-all text-xs text-slate-700 dark:text-slate-200">{userEmail || 'Authenticated'}</p><div className="grid grid-cols-2 gap-2">
           <button onClick={() => setDarkMode(!darkMode)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}{darkMode ? 'Light' : 'Dark'}</button>
           <button onClick={onLogout} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"><LogOut size={16} />Sign out</button>
-        </div>
+        </div></div></details>
       </div>
     </div>
   );

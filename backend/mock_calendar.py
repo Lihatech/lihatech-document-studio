@@ -1,6 +1,7 @@
 """Google Calendar event creation for approved one-to-one mock interviews."""
 import os
 import time
+from threading import Lock
 from uuid import UUID, uuid4
 
 import httpx
@@ -8,6 +9,10 @@ import httpx
 
 class CalendarError(Exception):
     pass
+
+
+_token_lock = Lock()
+_cached_token: tuple[str, float, str, str] | None = None
 
 
 def configured() -> bool:
@@ -25,19 +30,30 @@ def interviewer_email() -> str:
 
 
 def _token(client: httpx.Client) -> str:
+    global _cached_token
     if not configured():
         raise CalendarError("Mock interview calendar is not configured.")
-    try:
-        response = client.post("https://oauth2.googleapis.com/token", data={
-            "client_id": os.environ["GOOGLE_OAUTH_CLIENT_ID"],
-            "client_secret": os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
-            "refresh_token": os.environ["GOOGLE_OAUTH_REFRESH_TOKEN"],
-            "grant_type": "refresh_token",
-        })
-        response.raise_for_status()
-        return response.json()["access_token"]
-    except (httpx.HTTPError, KeyError, ValueError) as error:
-        raise CalendarError("Could not authorize the LihaTech calendar.") from error
+    client_id = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
+    refresh_token = os.environ["GOOGLE_OAUTH_REFRESH_TOKEN"]
+    with _token_lock:
+        if (_cached_token and _cached_token[1] > time.monotonic()
+                and _cached_token[2:] == (client_id, refresh_token)):
+            return _cached_token[0]
+        try:
+            response = client.post("https://oauth2.googleapis.com/token", data={
+                "client_id": client_id,
+                "client_secret": os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            })
+            response.raise_for_status()
+            payload = response.json()
+            token = payload["access_token"]
+            expires_in = int(payload.get("expires_in", 3600))
+            _cached_token = (token, time.monotonic() + max(0, expires_in - 60), client_id, refresh_token)
+            return token
+        except (httpx.HTTPError, KeyError, ValueError, TypeError) as error:
+            raise CalendarError("Could not authorize the LihaTech calendar.") from error
 
 
 def _url(event_id: str = "") -> str:

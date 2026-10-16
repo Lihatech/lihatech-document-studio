@@ -4,26 +4,26 @@ import { StudioLink } from '../components/layout/DocumentNavigation';
 
 interface HomeProps { navigate: (path: string) => void; data: StudioData }
 const tools = [
-  { collection: 'invoices', title: 'Invoices', detail: 'Create invoices, track payments, and manage billing records.', icon: FileText, base: '/invoice', action: 'Create invoice', tone: 'bg-teal-50 text-teal-700 dark:bg-teal-950/30 dark:text-teal-300' },
-  { collection: 'certificates', title: 'Certificates', detail: 'Issue individual or bulk certificates with your saved branding.', icon: Award, base: '/certificate', action: 'Create certificate', tone: 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300' },
-  { collection: 'letters', title: 'Letters', detail: 'Prepare offer, experience, and relieving letters for your team.', icon: Mail, base: '/letter', action: 'Create letter', tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300' },
-  { collection: 'payslips', title: 'Payslips', detail: 'Generate monthly payslips using your saved employee profiles.', icon: Receipt, base: '/payslip', action: 'Create payslip', tone: 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300' },
+  { collection: 'invoices', title: 'Invoices', detail: 'Create invoices, track payments, and manage billing records.', icon: FileText, base: '/invoice', action: 'Create invoice', tone: 'bg-teal-50 text-teal-700 dark:bg-teal-950/30 dark:text-teal-300', surface: 'from-teal-50/80 to-white dark:from-teal-950/20 dark:to-slate-900' },
+  { collection: 'certificates', title: 'Certificates', detail: 'Issue individual or bulk certificates with your saved branding.', icon: Award, base: '/certificate', action: 'Create certificate', tone: 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300', surface: 'from-sky-50/80 to-white dark:from-sky-950/20 dark:to-slate-900' },
+  { collection: 'letters', title: 'Letters', detail: 'Prepare offer, experience, and relieving letters for your team.', icon: Mail, base: '/letter', action: 'Create letter', tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300', surface: 'from-indigo-50/80 to-white dark:from-indigo-950/20 dark:to-slate-900' },
+  { collection: 'payslips', title: 'Payslips', detail: 'Generate monthly payslips using your saved employee profiles.', icon: Receipt, base: '/payslip', action: 'Create payslip', tone: 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300', surface: 'from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900' },
 ] as const;
 
 export default function Home({ navigate, data }: HomeProps) {
   return <div className="space-y-6" id="home-dashboard">
-    <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <section className="relative flex flex-col gap-4 overflow-hidden rounded-[1.25rem] border border-[#0b6474] bg-gradient-to-r from-[#073e5a] via-[#08657a] to-[#087d80] p-7 text-white shadow-[0_20px_45px_rgba(4,54,78,.16)] sm:flex-row sm:items-center sm:justify-between sm:p-9">
       <div>
-        <p className="mb-2 text-xs font-semibold text-sky-700 dark:text-cyan-300">Operations / Documents</p>
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white">Document Studio</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Create, manage, and export your organisation's documents from the LMS admin portal.</p>
+        <p className="mb-2 text-xs font-extrabold uppercase tracking-[.14em] text-teal-200">Operations / Documents</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Document Studio</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-sky-100">Create, manage, and export your organisation's documents from the LMS admin portal.</p>
       </div>
-      <StudioLink navigate={navigate} href="/settings" className="studio-button studio-button-secondary text-sm"><Settings size={16} />Document settings</StudioLink>
+      <StudioLink navigate={navigate} href="/settings" className="studio-button relative z-10 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/50 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"><Settings size={16} />Document settings</StudioLink>
     </section>
     <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Saved document totals">
       {tools.map(tool => {
         const Icon = tool.icon;
-        return <StudioLink key={tool.collection} navigate={navigate} href={`${tool.base}/old`} className="studio-stat rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-sky-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900">
+        return <StudioLink key={tool.collection} navigate={navigate} href={`${tool.base}/old`} className={`studio-stat rounded-2xl border border-slate-200 bg-gradient-to-br ${tool.surface} p-5 shadow-[0_7px_25px_rgba(5,46,73,.05)] transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-[0_14px_28px_rgba(5,46,73,.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800`}>
           <div className="flex items-center justify-between"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tool.tone}`}><Icon size={19} /></span><ArrowUpRight size={16} className="text-slate-500" /></div>
           <p className="mt-4 text-2xl font-extrabold tabular-nums text-slate-950 dark:text-white">{data[tool.collection].length.toLocaleString()}</p>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Saved {tool.title.toLowerCase()}</p>
@@ -35,7 +35,7 @@ export default function Home({ navigate, data }: HomeProps) {
       <div className="grid gap-4 md:grid-cols-2">
         {tools.map(tool => {
           const Icon = tool.icon;
-          return <article key={tool.collection} id={`${tool.collection}-tool`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+          return <article key={tool.collection} id={`${tool.collection}-tool`} className={`rounded-2xl border border-slate-200 bg-gradient-to-br ${tool.surface} p-5 shadow-[0_7px_25px_rgba(5,46,73,.05)] dark:border-slate-800 sm:p-6`}>
             <div className="flex items-start gap-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tool.tone}`}><Icon size={20} /></span><div><h3 className="text-base font-bold text-slate-950 dark:text-white">{tool.title}</h3><p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{tool.detail}</p></div></div>
             <div className="mt-5 flex flex-wrap gap-2">
               <StudioLink navigate={navigate} href={`${tool.base}/new`} className="studio-button studio-button-primary text-xs"><Plus size={16} />{tool.action}</StudioLink>

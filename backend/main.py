@@ -232,7 +232,7 @@ class MockRequestInput(BaseModel):
     starts_at: datetime
 
 
-MOCK_ZONE = timezone(timedelta(hours=5, minutes=30))
+MOCK_ZONE = timezone(timedelta(hours=5, minutes=30), 'Asia/Kolkata')
 
 
 def mock_hours() -> tuple[int, int]:
