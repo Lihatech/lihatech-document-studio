@@ -1,7 +1,7 @@
+import ListFilters from '../components/lms/ListFilters';
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Search, 
   Plus, 
   Eye, 
   Edit3, 
@@ -33,12 +33,14 @@ export default function OldPayslips({
   navigate
 }: OldPayslipsProps) {
   const [search, setSearch] = useState('');
+  const [category,setCategory] = useState('all');
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Filter payslips based on search
   const filteredPayslips = useMemo(() => {
     return payslips.filter(payslip => {
+      if(category!=='all'&&payslip.monthAndYear!==category) return false;
       const query = search.toLowerCase();
       return (
         payslip.employeeName.toLowerCase().includes(query) ||
@@ -48,7 +50,7 @@ export default function OldPayslips({
         payslip.monthAndYear.toLowerCase().includes(query)
       );
     });
-  }, [payslips, search]);
+  }, [payslips, search, category]);
 
   const handleDelete = async (id: string) => {
     if (!await onDeletePayslip(id)) return;
@@ -87,19 +89,7 @@ export default function OldPayslips({
         </button>
       </div>
 
-      {/* Search Bar Input */}
-      <div className="relative max-w-md">
-        <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <Search className="h-4 w-4 text-slate-400" />
-        </span>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search employee name, ID, month, or role..."
-          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-teal-500/20"
-        />
-      </div>
+      <ListFilters query={search} onQuery={setSearch} placeholder="Search name, ID or details" filters={[{label:'Month',value:category,onChange:setCategory,options:[{value:'all',label:'All months'},...[...new Set(payslips.map(row=>row.monthAndYear))].sort().map(value=>({value,label:value}))]}]}/>
 
       {/* Grid List View of Payslips */}
       {filteredPayslips.length > 0 ? (

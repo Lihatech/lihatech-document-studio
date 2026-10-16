@@ -1,3 +1,4 @@
+import ListFilters from '../components/lms/ListFilters';
 import React, { useState, useMemo, useRef } from 'react';
 import { 
   Search, 
@@ -67,6 +68,7 @@ export default function OldInvoices({
   navigate
 }: OldInvoicesProps) {
   const [search, setSearch] = useState('');
+  const [paymentFilter,setPaymentFilter] = useState('all');
   const [confirmDeleteIds, setConfirmDeleteIds] = useState<string[] | null>(null);
 
   // Bulk Group Modal / Hub state
@@ -90,7 +92,7 @@ export default function OldInvoices({
   const groups = useMemo(() => {
     const map = new Map<string, InvoiceGroup>();
 
-    invoices.forEach(inv => {
+    invoices.filter(inv=>paymentFilter==='all'||inv.status===paymentFilter).forEach(inv => {
       let groupKey = '';
       if (inv.bulkGroupId) {
         groupKey = inv.bulkGroupId;
@@ -165,7 +167,7 @@ export default function OldInvoices({
     });
 
     return filteredList.sort((a, b) => new Date(b.invoices[0].createdAt).getTime() - new Date(a.invoices[0].createdAt).getTime());
-  }, [invoices, search]);
+  }, [invoices, search, paymentFilter]);
 
   // Checkbox Selection state helpers
   const allInvoiceIds = useMemo(() => invoices.map(i => i.id), [invoices]);
@@ -409,18 +411,7 @@ export default function OldInvoices({
 
       {/* Filter, Search board & Export */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <Search className="h-4 w-4" />
-          </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by invoice number, client, project, or status (Paid, Unpaid)..."
-            className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-10 pr-4 py-3 text-xs text-gray-900 dark:text-white font-medium shadow-xs outline-none focus:border-teal-500/50 transition-all"
-          />
-        </div>
+        <div className="flex-1 w-full"><ListFilters query={search} onQuery={setSearch} placeholder="Search invoice, client or project" filters={[{label:'Payment status',value:paymentFilter,onChange:setPaymentFilter,options:[{value:'all',label:'All payment statuses'},...[...new Set(invoices.map(row=>row.status))].sort().map(value=>({value,label:value}))]}]}/></div>
 
         <button
           onClick={handleExportCSV}

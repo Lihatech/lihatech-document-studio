@@ -9,7 +9,7 @@ export default function StudentProfileForm({ student, firstLogin, busy, onSave, 
   onSave: (values: StudentProfileValues) => Promise<void>; onCancel?: () => void;
 }) {
   const [values, setValues] = useState<StudentProfileValues>(() => Object.fromEntries(
-    profileFields.map(key => [key, student[key] ?? '']),
+    profileFields.map(key => [key, firstLogin && key === 'full_name' ? '' : student[key] ?? '']),
   ) as StudentProfileValues);
   const change = (key: keyof StudentProfileValues, value: string) => setValues(current => ({ ...current, [key]: value }));
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -18,7 +18,7 @@ export default function StudentProfileForm({ student, firstLogin, busy, onSave, 
   }
 
   return <form className="panel student-profile-form" onSubmit={submit}>
-    <div className="student-profile-form-head"><span>{firstLogin ? 'FIRST SIGN-IN' : 'MY DETAILS'}</span><h2>{firstLogin ? 'Tell us a little about you' : 'Edit your profile'}</h2><p>Your name is already registered. Everything else here is optional; share only what you are comfortable sharing. LihaTech admins can see these details to support you.</p></div>
+    <div className="student-profile-form-head"><span>{firstLogin ? 'FIRST SIGN-IN' : 'MY DETAILS'}</span><h2>{firstLogin ? 'Tell us a little about you' : 'Edit your profile'}</h2><p>Enter your name to complete your profile. Everything else is optional; share only what you are comfortable sharing. LihaTech admins can see these details to support you.</p></div>
     <div className="student-profile-fields">
       <label>Full name <strong>Required</strong><input autoComplete="name" required maxLength={120} value={values.full_name} onChange={event => change('full_name', event.target.value)}/></label>
       <label>Phone number <span>Optional</span><input autoComplete="tel" type="tel" maxLength={40} value={values.phone} onChange={event => change('phone', event.target.value)}/></label>

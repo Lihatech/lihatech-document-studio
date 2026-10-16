@@ -40,6 +40,7 @@ const navGroups = [
     { path: '/mock-interviews', label: 'Mock interviews', icon: MessagesSquare },
   ] },
   { label: 'Operations', items: [
+    { path: '/document-requests', label: 'Document requests', icon: FileStack },
     { path: '/documents', label: 'Document Studio', icon: FileStack },
   ] },
   { label: 'Administration', items: [

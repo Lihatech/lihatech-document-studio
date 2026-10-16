@@ -13,12 +13,14 @@ import {
 } from 'lucide-react';
 import { Letter, CompanySettings } from '../types';
 import LetterPreview from '../components/letter/LetterPreview';
+import type { DocumentRequest } from '../lib/documentRequests';
 
 interface LetterBuilderProps {
   onBack: () => void;
   settings: CompanySettings;
   onSaveLetter: (letter: Letter) => Promise<boolean>;
   editingLetter?: Letter | null;
+  requestDraft?: DocumentRequest | null;
   navigate: (path: string) => void;
 }
 
@@ -27,6 +29,7 @@ export default function LetterBuilder({
   settings,
   onSaveLetter,
   editingLetter = null,
+  requestDraft = null,
   navigate
 }: LetterBuilderProps) {
   
@@ -160,8 +163,18 @@ export default function LetterBuilder({
       setCustomEmployerPFMonthly(editingLetter.customEmployerPFMonthly !== undefined ? String(editingLetter.customEmployerPFMonthly) : '0');
       setCustomEmployerESICMonthly(editingLetter.customEmployerESICMonthly !== undefined ? String(editingLetter.customEmployerESICMonthly) : '0');
       setCustomOtherBenefitsMonthly(editingLetter.customOtherBenefitsMonthly !== undefined ? String(editingLetter.customOtherBenefitsMonthly) : '0');
+    } else if (requestDraft?.kind === 'offer_letter' && requestDraft.offer_type) {
+      initializeDefaults(requestDraft.offer_type);
+      setCandidateName(requestDraft.candidate_name);
+      setDesignation(requestDraft.designation);
+      setDepartment(requestDraft.department || requestDraft.student_department || '');
+      setStartDate(requestDraft.start_date || '');
+      setEndDate(requestDraft.end_date || '');
+      setCollegeName(requestDraft.college_name || '');
+      setAddressTo(requestDraft.college_name ? 'college' : 'candidate');
+      setDuration(requestDraft.start_date && requestDraft.end_date ? `${Math.round((Date.parse(requestDraft.end_date)-Date.parse(requestDraft.start_date))/86400000)+1} days` : '');
     }
-  }, [editingLetter, settings]);
+  }, [editingLetter, settings, requestDraft]);
 
   const handleSave = async () => {
     if (!candidateName.trim()) {
@@ -275,6 +288,7 @@ export default function LetterBuilder({
 
   return (
     <div className="space-y-6 animate-fade-in py-2" id="letter-builder-workspace">
+      {requestDraft?.kind === 'offer_letter' && <div className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-950"><strong>Preparing a student request for {requestDraft.candidate_name}.</strong> Complete the official offer details, save and share the letter, then mark the request shared in <button type="button" className="font-bold underline" onClick={() => navigate('/document-requests')}>Document requests</button>.</div>}
       
       {/* Top Title Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

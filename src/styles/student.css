@@ -32,15 +32,24 @@
 .student-portal .topbar-search { width:min(380px,45vw); color:#87a0ad; display:flex; align-items:center; gap:10px; }
 .student-portal .topbar-search input { border:0; outline:0; background:transparent; color:var(--ink); width:100%; font-size:13px; }
 .student-portal .topbar-search input::placeholder { color:#9bb0bc; }
-.student-portal .topbar-actions { display:flex; align-items:center; gap:24px; }
 .student-portal .icon-button { border:0; color:#6c8797; background:transparent; border-radius:8px; display:grid; place-items:center; width:38px; height:38px; transition:background .2s,color .2s; }
 .student-portal .icon-button:hover { background:#eaf4f8; color:var(--navy); }
-.student-portal .notification-button { position:relative; }
-.student-portal .notification-button span { position:absolute; top:7px; right:7px; width:6px; height:6px; background:#ef8f37; border:2px solid #fff; border-radius:50%; }
-.student-portal .topbar-profile { display:flex; align-items:center; gap:10px; border-left:1px solid var(--line); padding-left:23px; }
-.student-portal .topbar-profile strong,.student-portal .topbar-profile small { display:block; }
-.student-portal .topbar-profile strong { font-size:12px; }
-.student-portal .topbar-profile small { color:var(--muted); font-size:10px; margin-top:2px; }
+.student-portal .student-notifications { position:relative; }
+.student-portal .student-notifications summary { display:grid; place-items:center; width:44px; height:44px; border:1px solid var(--line); border-radius:11px; color:var(--ink); background:#fff; cursor:pointer; list-style:none; }
+.student-portal .student-notifications summary::-webkit-details-marker { display:none; }
+.student-portal .student-notifications summary:hover,.student-portal .student-notifications[open] summary { color:#07547e; background:#e8f5fa; }
+.student-portal .student-notifications summary:focus-visible { outline:3px solid rgba(0,185,232,.4); outline-offset:3px; }
+.student-portal .student-notifications-panel { position:absolute; right:0; top:calc(100% + 12px); width:min(365px,calc(100vw - 36px)); max-height:min(520px,calc(100dvh - 110px)); overflow:auto; padding:18px; border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:0 18px 45px rgba(6,43,75,.18); }
+.student-portal .student-notifications-panel h2 { font-size:18px; margin:0; }
+.student-portal .student-notifications-caption { font-size:12px; color:var(--muted); margin:4px 0 12px; }
+.student-portal .student-notifications-panel button { display:flex; align-items:center; gap:10px; width:100%; min-height:60px; padding:10px 4px; border:0; border-top:1px solid var(--line); background:transparent; color:var(--ink); text-align:left; }
+.student-portal .student-notifications-panel button:hover { background:#f4fafd; }
+.student-portal .student-notifications-panel button>span:nth-child(2) { flex:1; min-width:0; }
+.student-portal .student-notifications-panel button strong,.student-portal .student-notifications-panel button small { display:block; line-height:1.4; }
+.student-portal .student-notifications-panel button strong { font-size:12px; }
+.student-portal .student-notifications-panel button small { color:var(--muted); font-size:11px; margin-top:3px; }
+.student-portal .student-notification-icon { display:grid; place-items:center; flex:none; width:32px; height:32px; border-radius:9px; color:#07547e; background:#e8f5fa; }
+.student-portal .student-notifications-message { color:var(--muted); font-size:12px; margin:12px 0 0; }
 .student-portal .avatar { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; color:#fff; background:linear-gradient(135deg,var(--blue),var(--teal)); font-size:11px; font-weight:800; box-shadow:0 0 0 3px #e4f3f7; }
 .student-portal .avatar.large { width:70px; height:70px; font-size:20px; box-shadow:0 0 0 5px #e2f4f6; }
 .student-portal .page-content { max-width:1380px; margin:0 auto; padding:47px 44px 64px; }
@@ -144,7 +153,7 @@
 .student-portal .student-pdf-page { margin:0 auto 16px; text-align:center; }
 .student-portal .student-pdf-page canvas { display:block; max-width:100%; height:auto; margin:0 auto; background:white; box-shadow:var(--shadow); }
 @media(max-width:800px) {
- .student-portal .student-mobile-nav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); padding:8px; gap:4px; background:white; border-bottom:1px solid var(--line); }
+ .student-portal .student-mobile-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); padding:8px; gap:4px; background:white; border-bottom:1px solid var(--line); }
  .student-portal .student-mobile-nav a { display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 4px; min-height:52px; font-size:12px; color:var(--ink); text-align:center; text-decoration:none; }
  .student-portal .student-mobile-nav .active { color:#07547e; background:#e7f4fb; border-radius:8px; }
  .student-portal .hero-progress-card { min-height:240px; }
@@ -237,8 +246,6 @@
 .student-portal .student-sidebar-profile-name small { color:#add4df; font-size:10px; }
 .student-portal .student-signout { width:100%; margin-top:8px; font-size:12px; }
 .student-portal .topbar { background:rgba(255,255,255,.92); box-shadow:0 1px 10px rgba(4,42,67,.035); }
-.student-portal .topbar-profile { color:var(--ink); text-decoration:none; border-radius:9px; }
-.student-portal .topbar-profile:hover strong { color:var(--blue); }
 .student-portal .page-content { max-width:1200px; }
 .student-portal .page-header h1 { font-size:clamp(30px,3vw,40px); }
 .student-portal .page-header .eyebrow { color:#087f84; }

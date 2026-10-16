@@ -1,3 +1,4 @@
+import ListFilters from '../components/lms/ListFilters';
 import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
@@ -54,6 +55,7 @@ export default function OldCertificates({
   navigate
 }: OldCertificatesProps) {
   const [search, setSearch] = useState('');
+  const [category,setCategory] = useState('all');
   const [confirmDeleteIds, setConfirmDeleteIds] = useState<string[] | null>(null);
   
   // State for the Bulk Group Hub modal
@@ -65,7 +67,7 @@ export default function OldCertificates({
   const groups = useMemo(() => {
     const map = new Map<string, CertificateGroup>();
 
-    certificates.forEach(cert => {
+    certificates.filter(cert=>category==='all'||cert.certificateType===category).forEach(cert => {
       let groupKey = '';
       if (cert.bulkGroupId) {
         groupKey = cert.bulkGroupId;
@@ -133,7 +135,7 @@ export default function OldCertificates({
     });
 
     return filteredList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [certificates, search]);
+  }, [certificates, search, category]);
 
   // Handle deletion triggers
   const handleDeleteClick = (ids: string[]) => {
@@ -385,19 +387,7 @@ export default function OldCertificates({
         </div>
       </div>
 
-      {/* Filter and Search board */}
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-          <Search className="h-4 w-4" />
-        </div>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by candidate name, certificate ID, program, or type..."
-          className="block w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-10 pr-4 py-3 text-xs text-gray-900 dark:text-white font-medium shadow-xs outline-none focus:border-amber-500/50 transition-all"
-        />
-      </div>
+      <ListFilters query={search} onQuery={setSearch} placeholder="Search name, certificate ID or programme" filters={[{label:'Certificate type',value:category,onChange:setCategory,options:[{value:'all',label:'All certificate types'},...[...new Set(certificates.map(row=>row.certificateType))].sort().map(value=>({value,label:value}))]}]}/>
 
       {/* Grid of certificate items / Table */}
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">

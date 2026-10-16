@@ -19,6 +19,7 @@ import {
   CERTIFICATE_TYPE_PRESETS
 } from '../utils/certificateUtils';
 import CertificatePreview, { CertificateLayoutControls } from '../components/certificate/CertificatePreview';
+import type { DocumentRequest } from '../lib/documentRequests';
 
 interface CertificateBuilderProps {
   onBack: () => void;
@@ -28,6 +29,7 @@ interface CertificateBuilderProps {
   onAddCertificateOption: (kind: 'category' | 'partner', name: string) => Promise<string>;
   onSaveCertificate: (cert: Certificate) => Promise<boolean>;
   editingCertificate?: Certificate | null;
+  requestDraft?: DocumentRequest | null;
   onSaveCourse: (course: Course) => Promise<boolean>;
   navigate: (path: string) => void;
 }
@@ -41,6 +43,7 @@ export default function CertificateBuilder({
   onAddCertificateOption,
   onSaveCertificate,
   editingCertificate = null,
+  requestDraft = null,
   navigate
 }: CertificateBuilderProps) {
   
@@ -140,8 +143,16 @@ export default function CertificateBuilder({
         setProgramName('');
         setCompletionText(getDefaultCompletionText('Course Completion'));
       }
+      if (requestDraft?.kind === 'certificate') {
+        setCandidateName(requestDraft.candidate_name);
+        setCertificateType(requestDraft.certificate_type || 'Course Completion');
+        setCompletionText(getDefaultCompletionText(requestDraft.certificate_type || 'Course Completion'));
+        setProgramName(requestDraft.program_name);
+        setStartDate(requestDraft.start_date || '');
+        setEndDate(requestDraft.end_date || '');
+      }
     }
-  }, [editingCertificate]);
+  }, [editingCertificate, requestDraft]);
 
   const selectedPartner = settings.certificatePartners?.find((partner) => partner.id === partnerProfileId);
 
@@ -159,10 +170,10 @@ export default function CertificateBuilder({
       id: editingCertificate ? editingCertificate.id : crypto.randomUUID(),
       certificateId,
       candidateName,
-      candidateEmail: '',
-      candidatePhone: '',
-      collegeName: '',
-      department: '',
+      candidateEmail: editingCertificate?.candidateEmail || requestDraft?.student_email || '',
+      candidatePhone: editingCertificate?.candidatePhone || requestDraft?.student_phone || '',
+      collegeName: editingCertificate?.collegeName || requestDraft?.college_name || '',
+      department: editingCertificate?.department || requestDraft?.student_department || '',
       enrollmentId: '',
       certificateType,
       presentationText: presentationText.trim() || DEFAULT_PRESENTATION_TEXT,
@@ -192,6 +203,7 @@ export default function CertificateBuilder({
 
   return (
     <div className="space-y-8 pb-12 animate-fade-in">
+      {requestDraft?.kind === 'certificate' && <div className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-950"><strong>Preparing a student request for {requestDraft.candidate_name}.</strong> Check the details, save and share the certificate, then mark the request shared in <button type="button" className="font-bold underline" onClick={() => navigate('/document-requests')}>Document requests</button>.</div>}
       
       {/* Header controls bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">

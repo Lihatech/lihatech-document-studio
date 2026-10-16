@@ -1,7 +1,7 @@
+import ListFilters from '../components/lms/ListFilters';
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Search, 
   Plus, 
   Eye, 
   Edit3, 
@@ -32,21 +32,24 @@ export default function OldLetters({
   navigate
 }: OldLettersProps) {
   const [search, setSearch] = useState('');
+  const [category,setCategory] = useState('all');
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Filter letters based on search query
   const filteredLetters = useMemo(() => {
     return letters.filter(letter => {
+      if(category!=='all'&&letter.letterType!==category) return false;
       const query = search.toLowerCase();
       return (
         letter.candidateName.toLowerCase().includes(query) ||
+        (letter.referenceNo || '').toLowerCase().includes(query) ||
         letter.designation.toLowerCase().includes(query) ||
         letter.department.toLowerCase().includes(query) ||
         letter.letterType.toLowerCase().includes(query)
       );
     });
-  }, [letters, search]);
+  }, [letters, search, category]);
 
   const handleDelete = async (id: string) => {
     if (!await onDeleteLetter(id)) return;
@@ -98,19 +101,7 @@ export default function OldLetters({
         </button>
       </div>
 
-      {/* Search Input Bar */}
-      <div className="relative max-w-md">
-        <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <Search className="h-4 w-4 text-slate-400" />
-        </span>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search employee name, department, role, or layout..."
-          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
-        />
-      </div>
+      <ListFilters query={search} onQuery={setSearch} placeholder="Search name, reference or role" filters={[{label:'Letter type',value:category,onChange:setCategory,options:[{value:'all',label:'All letter types'},...[...new Set(letters.map(row=>row.letterType))].sort().map(value=>({value,label:value}))]}]}/>
 
       {/* Grid List View of Letters */}
       {filteredLetters.length > 0 ? (

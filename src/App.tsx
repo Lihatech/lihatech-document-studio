@@ -29,6 +29,7 @@ import {
 } from './lib/supabase';
 import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, type StudioData } from './lib/documentStudio';
 import { isLmsAccessDenied, rpc, type LmsSession } from './lib/lms';
+import type { DocumentRequest } from './lib/documentRequests';
 
 // Pages
 import Login from './pages/Login';
@@ -45,6 +46,7 @@ const OldPayslips = lazy(() => import('./pages/OldPayslips'));
 const Settings = lazy(() => import('./pages/Settings'));
 const LmsAdmin = lazy(() => import('./pages/admin/LmsAdmin'));
 const StudentPortal = lazy(() => import('./pages/student/StudentPortal'));
+const DocumentRequestsAdmin = lazy(() => import('./pages/admin/DocumentRequestsAdmin'));
 
 const adminModuleByPath: Record<string, string> = {
   '/students': 'students',
@@ -82,6 +84,7 @@ export default function App() {
     if (path === '/invoice/new' && toPath !== path) setEditingInvoice(null);
     if (path === '/certificate/new' && toPath !== path) setEditingCertificate(null);
     if (path === '/letter/new' && toPath !== path) setEditingLetter(null);
+    if ((path === '/certificate/new' || path === '/letter/new') && toPath !== path) setRequestDraft(null);
     if (path === '/payslip/new' && toPath !== path) setEditingPayslip(null);
     window.history.pushState(null, '', toPath);
     setPath(toPath);
@@ -186,6 +189,7 @@ export default function App() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [editingCertificate, setEditingCertificate] = useState<Certificate | null>(null);
   const [editingLetter, setEditingLetter] = useState<Letter | null>(null);
+  const [requestDraft, setRequestDraft] = useState<DocumentRequest | null>(null);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
 
   // Active Previews in Dialog overlays
@@ -257,6 +261,10 @@ export default function App() {
     db.certificates.some(item => item.id === row.id) ? 'certificate_updated' : 'certificate_created', `Certificate ${row.certificateId} saved for ${row.candidateName}`);
   const handleSaveLetter = (row: Letter) => saveDocument('letters', row, '/letter/old',
     db.letters.some(item => item.id === row.id) ? 'letter_updated' : 'letter_created', `${row.letterType} saved for ${row.candidateName}`);
+  const prepareRequest = (request: DocumentRequest) => {
+    setRequestDraft(request);
+    navigate(request.kind === 'certificate' ? '/certificate/new' : '/letter/new');
+  };
   const handleSavePayslip = (row: Payslip) => saveDocument('payslips', row, '/payslip/old',
     db.payslips.some(item => item.id === row.id) ? 'payslip_updated' : 'payslip_created', `Payslip saved for ${row.employeeName} (${row.monthAndYear})`);
   const handleSavePayslips = (rows: Payslip[]) => {
@@ -348,15 +356,16 @@ export default function App() {
           <DocumentNavigation path={path} navigate={navigate} editing={Boolean((path === "/invoice/new" && editingInvoice) || (path === "/certificate/new" && editingCertificate) || (path === "/letter/new" && editingLetter) || (path === "/payslip/new" && editingPayslip))} />
 
           {(path === '/' || path === '/lms' || path === '/admin' || path === '/courses' || path === '/reports') && (
-            <LmsAdmin navigate={navigate} />
+            <LmsAdmin navigate={navigate} certificateCategories={db.settings.certificateCategories} />
           )}
 
           {adminModuleByPath[path] && (
-            <LmsAdmin module={adminModuleByPath[path]} navigate={navigate} />
+            <LmsAdmin module={adminModuleByPath[path]} navigate={navigate} certificateCategories={db.settings.certificateCategories} />
           )}
 
-          {path === '/team' && <LmsAdmin module="team" navigate={navigate} />}
-          {(path === '/lectures' || path === '/certificate-requests' || path.startsWith('/student')) && <div className="lms-panel"><h1>This page is outside the version 1 LMS workflow.</h1><button className="studio-secondary" onClick={() => navigate('/')}>Back to overview</button></div>}
+          {path === '/team' && <LmsAdmin module="team" navigate={navigate} certificateCategories={db.settings.certificateCategories} />}
+          {(path === '/document-requests' || path === '/certificate-requests') && <DocumentRequestsAdmin onPrepare={prepareRequest} certificateCategories={db.settings.certificateCategories}/>}
+          {(path === '/lectures' || path.startsWith('/student')) && <div className="lms-panel"><h1>This page is outside the version 1 LMS workflow.</h1><button className="studio-secondary" onClick={() => navigate('/')}>Back to overview</button></div>}
 
           {path === '/documents' && (
             <Home navigate={navigate} data={db} />
@@ -398,6 +407,7 @@ export default function App() {
               onAddCertificateOption={handleAddCertificateOption}
               onSaveCertificate={handleSaveCertificate}
               editingCertificate={editingCertificate}
+              requestDraft={requestDraft}
               onSaveCourse={handleSaveCourse}
               navigate={navigate}
             />
@@ -439,6 +449,7 @@ export default function App() {
               settings={db.settings}
               onSaveLetter={handleSaveLetter}
               editingLetter={editingLetter}
+              requestDraft={requestDraft}
               navigate={navigate}
             />
           )}
