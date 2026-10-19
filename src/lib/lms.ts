@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
-import { auth } from './firebase';
-import { LMS_API_BASE_URL } from './lmsApi';
+import { lmsFetch, lmsRequest } from './lmsApi';
 
 export type Row = Record<string, any>;
 export type LmsSession = { role: 'admin' | 'student'; id: string; name: string; email: string; status?: string };
@@ -12,18 +11,16 @@ export async function rpc<T>(name: string, args = {}): Promise<T> {
   if (!supabase) throw new Error('Supabase is not configured.');
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  if(/^lms_(?:request_|save_|approve_|review_|admin_update_|publish_|create_|import_|assign_|admin_save_)/.test(name))window.dispatchEvent(new Event('lihatech-activity'));
   return data;
 }
 export async function lmsApi<T>(path: string, method: 'GET' | 'POST' = 'POST', body?: unknown): Promise<T> {
-  const token = await auth?.currentUser?.getIdToken();
-  if (!token) throw new Error('Sign in again to continue.');
-  const response = await fetch(`${LMS_API_BASE_URL || '/api'}${path}`, {
-    method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : {'Content-Type': 'application/json'}) },
+  const result=await lmsRequest<T>(path,{
+    method,
     ...(body === undefined ? {} : {body: JSON.stringify(body)}),
   });
-  const result = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(result?.detail ?? 'The request could not be completed.');
-  return result as T;
+  if(method==='POST')window.dispatchEvent(new Event('lihatech-activity'));
+  return result;
 }
 export const isLmsAccessDenied = (error: unknown) =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === '42501';
@@ -48,6 +45,7 @@ export async function saveRow(table: LmsTable, values: Row, keys?: Row) {
   const { data, error } = await query.select();
   if (error) throw new Error(error.message);
   if (!data?.length) throw new Error('The record could not be saved. Refresh and check your access.');
+  window.dispatchEvent(new Event('lihatech-activity'));
   return data[0] as Row;
 }
 export async function removeAssignment(table: LmsTable, keys: Row) {
@@ -56,6 +54,7 @@ export async function removeAssignment(table: LmsTable, keys: Row) {
   for (const [key,value] of Object.entries(keys)) query = query.eq(key,value);
   const { error } = await query;
   if (error) throw new Error(error.message);
+  window.dispatchEvent(new Event('lihatech-activity'));
 }
 export const displayDate = (value?: string) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }) : 'No expiry';
 // A batch date includes the whole day in Kolhapur (UTC+05:30).
@@ -66,11 +65,10 @@ export const localDate = (value?: string) => {
   const d = new Date(value);
   return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
 };
-export async function openMaterial(id: string): Promise<{blob?: Blob; url?: string}> {
+export async function openMaterial(id: string): Promise<{blob?: Blob; url?: string;filename?:string}> {
   const material = await rpc<Row>('lms_open_material',{p_id:id});
   if (material.kind === 'link') return {url:material.url};
-  const token = await auth?.currentUser?.getIdToken();
-  const response = await fetch(`${LMS_API_BASE_URL || '/api'}/student/materials/${id}`, {headers:{Authorization:`Bearer ${token}`}});
+  const response = await lmsFetch(`/student/materials/${id}`);
   if (!response.ok) {
     const body = await response.json().catch(()=>null);
     throw new Error(body?.detail ?? 'Could not download the file. Check your access or contact admin.');
@@ -78,5 +76,5 @@ export async function openMaterial(id: string): Promise<{blob?: Blob; url?: stri
   if (response.headers.get('content-type')?.includes('text/html')) throw new Error('The file service returned a web page instead of the uploaded file. Contact admin.');
   const blob = await response.blob();
   if (blob.type === 'application/pdf' && !(await blob.slice(0,1024).text()).includes('%PDF-')) throw new Error('The uploaded PDF is invalid. Ask admin to upload it again.');
-  return {blob};
+  return {blob,filename:response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1]};
 }

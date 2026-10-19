@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {build} from 'esbuild';
+const result=await build({entryPoints:['src/lib/studentProfile.ts'],bundle:true,write:false,platform:'node',format:'cjs'});
+const output={exports:{}};
+new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),output,output.exports);
+const {normalizeName,profileValues,documentName}=output.exports;
+assert.equal(normalizeName('  jane   o\'neill  '),"Jane O'Neill");
+assert.equal(normalizeName('JOHN DOE'),'John Doe');
+assert.equal(normalizeName('McDonald Li'),'McDonald Li');
+assert.equal(normalizeName('anne-marie silva'),'Anne-Marie Silva');
+assert.equal(normalizeName('élodie de silva'),'Élodie De Silva');
+assert.equal(documentName(profileValues({full_name:'ms. jane doe'})),'Ms. Jane Doe');
+assert.equal(documentName(profileValues({salutation:'Dr.',full_name:'Mr. JOHN DOE'})),'Dr. John Doe');
+assert.equal(documentName(profileValues({full_name:'john doe'})),'John Doe','No title is guessed from a name');
+console.log('Name whitespace, casing, title handling, Unicode, and intentional spelling checks passed.');

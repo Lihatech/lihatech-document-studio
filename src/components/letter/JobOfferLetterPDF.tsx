@@ -459,7 +459,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
   const HeaderSubPage = () => (
     <View style={styles.simplifiedHeader}>
       <Text style={styles.simplifiedHeaderLeft}>{settings.name}</Text>
-      <Text style={styles.simplifiedHeaderRight}>Ref: {referenceId}</Text>
+      <Text style={styles.simplifiedHeaderRight}>Ref: {referenceId}{letter.studentId ? '\nStudent ID: '+letter.studentId : ''}</Text>
     </View>
   );
 
@@ -518,7 +518,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
           <View style={styles.metaSection}>
             <Text>
               <Text style={styles.metaLabel}>Ref No: </Text>
-              <Text style={styles.metaValue}>{referenceId}</Text>
+              <Text style={styles.metaValue}>{referenceId}{letter.studentId ? '\nStudent ID: '+letter.studentId : ''}</Text>
             </Text>
             <Text>
               <Text style={styles.metaLabel}>Date: </Text>

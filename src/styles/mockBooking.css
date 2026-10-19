@@ -79,6 +79,11 @@
 .student-portal .booking-confirm-summary { display:grid; gap:10px; padding:16px; border:1px solid #d1e6e7; border-radius:10px; background:#f0f9f7; }
 .student-portal .booking-confirm-summary span,.student-portal .booking-confirm-summary strong { display:flex; align-items:center; gap:9px; font-size:14px; }
 .student-portal .booking-confirm-summary svg { color:#087f73; }
+.student-portal .booking-topics { display:block; margin:20px 0 8px; font-size:14px; font-weight:700; }
+.student-portal .booking-topics span { color:var(--muted); font-weight:400; }
+.student-portal .booking-topics-input { box-sizing:border-box; width:100%; padding:12px; border:1px solid var(--line); border-radius:9px; font:inherit; background:#fff; color:var(--ink); resize:vertical; }
+.student-portal .booking-topics-input:focus-visible { outline:2px solid #087f73; outline-offset:2px; }
+.student-portal .booking-confirm #prepared-topics-help { margin:8px 0 0; font-size:12px; }
 .student-portal .booking-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
 .student-portal .booking-confirm-actions button { display:flex; align-items:center; justify-content:center; gap:5px; min-height:44px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); font-size:13px; font-weight:700; }
 .student-portal .booking-confirm-actions button:last-child { border-color:#087f73; background:#087f73; color:#fff; }
@@ -86,6 +91,23 @@
 .student-portal .booking-confirm-actions button:disabled { opacity:.6; cursor:wait; }
 .student-portal .booking-select-hint { margin:15px 0 0; color:var(--muted); font-size:12px; }
 .student-portal .booking-upcoming { margin-top:18px; }
+.student-portal .booking-left-column { min-width:0; }
+.student-portal .booking-left-column .booking-interview { display:grid; gap:9px; }
+.student-portal .booking-left-column .booking-interview-date { min-width:0; }
+.student-portal .booking-left-column .booking-interview>div { margin:0; flex-wrap:wrap; }
+.student-portal .booking-left-column .lms-filters { flex-wrap:wrap; }
+.student-portal .booking-left-column input,.student-portal .booking-left-column select { max-width:100%; min-width:0; }
+.student-portal .booking-sent { display:flex; align-items:start; gap:12px; margin-top:18px; padding:18px; border:1px solid #98ccbb; border-radius:12px; background:#edf8f2; color:#14563e; }
+.student-portal .booking-sent svg { flex:none; }
+.student-portal .booking-sent p { margin:5px 0 0; font-size:14px; line-height:1.5; }
+.student-portal .booking-sent button { min-height:44px; margin-left:auto; background:transparent; border:0; color:inherit; font-weight:700; }
+.student-portal .booking-date-markers .pending,.student-portal .booking-date-key .pending,.student-portal .booking-slot-key .is-requested { background:#667085; }
+.student-portal .booking-date-markers .confirmed,.student-portal .booking-date-key .confirmed,.student-portal .booking-slot-key .is-confirmed { background:#15803d; }
+.student-portal .booking-time-option.is-requested,.student-portal .booking-time-option.is-requested:disabled:hover,.student-portal .booking-interview.is-requested { background:#f2f4f7; border-color:#98a2b3; color:#344054; }
+.student-portal .booking-time-option.is-confirmed,.student-portal .booking-time-option.is-confirmed:disabled:hover,.student-portal .booking-interview.is-confirmed { background:#edf8f2; border-color:#86c5a1; color:#14532d; }
+.student-portal .booking-time-option.is-requested small,.student-portal .booking-time-option.is-confirmed small { color:inherit; }
+.student-portal .booking-interview.is-requested .booking-interview-status { color:#344054; background:#e4e7ec; }
+.student-portal .booking-interview.is-confirmed .booking-interview-status { color:#14532d; background:#d4eddd; }
 .student-portal .booking-upcoming-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .student-portal .booking-upcoming-head>span { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:#e4f3f9; color:#07567d; font-weight:800; }
 .student-portal .booking-upcoming-list { display:grid; gap:8px; }

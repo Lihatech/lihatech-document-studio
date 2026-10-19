@@ -27,12 +27,13 @@ import {
   loadCompanySettings,
   saveCompanySettings,
 } from './lib/supabase';
-import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, type StudioData } from './lib/documentStudio';
+import { loadStudioData, saveStudioChanges, addCertificateOption, errorMessage, type StudioData, rememberStudioRecord, type StudioRecord } from './lib/documentStudio';
 import { isLmsAccessDenied, rpc, type LmsSession } from './lib/lms';
 import type { DocumentRequest } from './lib/documentRequests';
 
 // Pages
 import Login from './pages/Login';
+import ConnectionNotice from './components/ConnectionNotice';
 import Home from './pages/Home';
 const InvoiceBuilder = lazy(() => import('./pages/InvoiceBuilder'));
 const CertificateBuilder = lazy(() => import('./pages/CertificateBuilder'));
@@ -45,6 +46,7 @@ const PayslipBuilder = lazy(() => import('./pages/PayslipBuilder'));
 const OldPayslips = lazy(() => import('./pages/OldPayslips'));
 const Settings = lazy(() => import('./pages/Settings'));
 const LmsAdmin = lazy(() => import('./pages/admin/LmsAdmin'));
+import { NotificationProvider } from './components/lms/StudentNotifications';
 const StudentPortal = lazy(() => import('./pages/student/StudentPortal'));
 const DocumentRequestsAdmin = lazy(() => import('./pages/admin/DocumentRequestsAdmin'));
 
@@ -73,6 +75,23 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState('');
   const [session, setSession] = useState<LmsSession | null>(null);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [connectionIssue, setConnectionIssue] = useState(false);
+  const [accessAttempt, setAccessAttempt] = useState(0);
+  const verifiedUser = React.useRef<{ uid: string; role: LmsSession['role'] } | null>(null);
+  const retryAccess = () => {
+    setOnline(navigator.onLine);
+    if (navigator.onLine) setAccessAttempt(attempt => attempt + 1);
+  };
+  useEffect(() => {
+    const disconnected = () => { setOnline(false); setConnectionIssue(true); };
+    window.addEventListener('offline', disconnected);
+    window.addEventListener('online', retryAccess);
+    return () => {
+      window.removeEventListener('offline', disconnected);
+      window.removeEventListener('online', retryAccess);
+    };
+  }, []);
 
   // Active Routing Path State (URL synchronized)
   const [path, setPath] = useState(() => {
@@ -84,7 +103,6 @@ export default function App() {
     if (path === '/invoice/new' && toPath !== path) setEditingInvoice(null);
     if (path === '/certificate/new' && toPath !== path) setEditingCertificate(null);
     if (path === '/letter/new' && toPath !== path) setEditingLetter(null);
-    if ((path === '/certificate/new' || path === '/letter/new') && toPath !== path) setRequestDraft(null);
     if (path === '/payslip/new' && toPath !== path) setEditingPayslip(null);
     window.history.pushState(null, '', toPath);
     setPath(toPath);
@@ -118,6 +136,8 @@ export default function App() {
     const unsubscribe = subscribeToCompanyAuth(async (user) => {
       const current = ++generation;
       if (!user) {
+        verifiedUser.current = null;
+        setConnectionIssue(false);
         localStorage.removeItem('lt_is_logged_in');
         setIsLoggedIn(false);
         setSession(null);
@@ -126,17 +146,33 @@ export default function App() {
         return;
       }
 
+      if (verifiedUser.current?.uid !== user.uid) {
+        setIsLoggedIn(false);
+        setSession(null);
+        setAuthEmail(null);
+      }
+      if (!navigator.onLine) {
+        setConnectionIssue(true);
+        setAuthReady(true);
+        return;
+      }
+
       try {
         setAuthReady(false);
         const account = await rpc<LmsSession>('lms_session');
+        let sharedData: StudioData | undefined;
         if (account.role === 'admin') {
           if (!isAllowedCompanyUser(user)) throw new Error(COMPANY_ACCESS_WARNING);
-          const sharedSettings = await loadCompanySettings();
-          const sharedData = await loadStudioData(getDefaultStudioData());
-          sharedData.settings = normalizeSettings(sharedSettings || {});
-          setDb(sharedData);
+          if (verifiedUser.current?.uid !== user.uid || verifiedUser.current.role !== 'admin') {
+            const sharedSettings = await loadCompanySettings();
+            sharedData = await loadStudioData(getDefaultStudioData());
+            sharedData.settings = normalizeSettings(sharedSettings || {});
+          }
         }
         if (current !== generation) return;
+        if (sharedData) setDb(sharedData);
+        verifiedUser.current = { uid: user.uid, role: account.role };
+        setConnectionIssue(false);
         setSession(account);
         const currentPath = window.location.pathname;
         const destination = account.role === 'student' ? (currentPath.startsWith('/student/') || currentPath === '/student' ? currentPath : '/student') : (currentPath.startsWith('/student') ? '/' : currentPath);
@@ -154,42 +190,57 @@ export default function App() {
               : typeof error === 'object' && error !== null && 'message' in error
                 ? String(error.message)
                 : 'Could not verify access. Check your connection and retry.';
+        if (!isLmsAccessDenied(error) && supabaseMessage !== COMPANY_ACCESS_WARNING) {
+          // A failed connection is not a failed login. Keep verified state and open work intact.
+          setConnectionIssue(true);
+          return;
+        }
+        setConnectionIssue(false);
         setAuthError(supabaseMessage);
-        if (isLmsAccessDenied(error) || supabaseMessage === COMPANY_ACCESS_WARNING) await signOutCompany();
+        verifiedUser.current = null;
         localStorage.removeItem('lt_is_logged_in');
         setIsLoggedIn(false);
         setSession(null);
         setAuthEmail(null);
+        await signOutCompany();
       }
       finally {
         if (current === generation) setAuthReady(true);
       }
     });
     return () => { generation++; unsubscribe(); };
-  }, [authConfigured]);
+  }, [authConfigured, accessAttempt]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
     let active = true;
     const verify = async () => {
-      try { const next = await rpc<LmsSession>('lms_session'); if (active) { setSession(next); setAuthError(''); } }
+      if (!navigator.onLine) return;
+      try { const next = await rpc<LmsSession>('lms_session'); if (active) { setSession(next); setAuthError(''); setConnectionIssue(false); } }
       catch (error) {
         if (!active) return;
         if (isLmsAccessDenied(error)) {
           setAuthError('Your access changed. Sign in again or contact admin.');
           void signOutCompany();
-        } else console.warn('Could not refresh LMS access; keeping the current session.', error);
+        } else { setConnectionIssue(true); console.warn('Could not refresh LMS access; keeping the current session.', error); }
       }
     };
     const timer = window.setInterval(verify, 60000);
     return () => { active = false; window.clearInterval(timer); };
   }, [isLoggedIn]);
 
+  const [requestCache,setRequestCache]=useState<DocumentRequest[]|null>(null);
+  useEffect(()=>{setRequestCache(null);},[authEmail]);
+  const acceptIssuedRecord=(record:StudioRecord)=>{
+    rememberStudioRecord(record);
+    const collection=record.kind==='certificate'?'certificates':'letters';
+    setDb(current=>({...current,[collection]:[record.data,...current[collection].filter(row=>row.id!==record.record_id)]}));
+  };
+
   // Editing pointers for Builders
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [editingCertificate, setEditingCertificate] = useState<Certificate | null>(null);
   const [editingLetter, setEditingLetter] = useState<Letter | null>(null);
-  const [requestDraft, setRequestDraft] = useState<DocumentRequest | null>(null);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
 
   // Active Previews in Dialog overlays
@@ -248,7 +299,7 @@ export default function App() {
       ? rows.map(row => row.id === document.id ? document : row) : [document, ...rows];
     if (!await updateDbState({ [collection]: updated }, createActivity(type, description))) return false;
     setEditingInvoice(null); setEditingCertificate(null); setEditingLetter(null); setEditingPayslip(null);
-    navigate(route); return true;
+    navigate('requestId' in document && document.requestId ? '/document-requests' : route); return true;
   };
   const archiveDocuments = (collection: DocumentCollection, ids: string | string[], type: Parameters<typeof createActivity>[0]) => {
     const selected = Array.isArray(ids) ? ids : [ids];
@@ -261,10 +312,6 @@ export default function App() {
     db.certificates.some(item => item.id === row.id) ? 'certificate_updated' : 'certificate_created', `Certificate ${row.certificateId} saved for ${row.candidateName}`);
   const handleSaveLetter = (row: Letter) => saveDocument('letters', row, '/letter/old',
     db.letters.some(item => item.id === row.id) ? 'letter_updated' : 'letter_created', `${row.letterType} saved for ${row.candidateName}`);
-  const prepareRequest = (request: DocumentRequest) => {
-    setRequestDraft(request);
-    navigate(request.kind === 'certificate' ? '/certificate/new' : '/letter/new');
-  };
   const handleSavePayslip = (row: Payslip) => saveDocument('payslips', row, '/payslip/old',
     db.payslips.some(item => item.id === row.id) ? 'payslip_updated' : 'payslip_created', `Payslip saved for ${row.employeeName} (${row.monthAndYear})`);
   const handleSavePayslips = (rows: Payslip[]) => {
@@ -319,21 +366,26 @@ export default function App() {
   };
 
   // Auth check guard
-  if (authConfigured && !authReady) {
+  const connectionNotice = (!online || connectionIssue)
+    ? <ConnectionNotice offline={!online} checking={!authReady} onRetry={retryAccess} /> : null;
+  if (authConfigured && !authReady && !isLoggedIn) {
+    if (connectionNotice) return connectionNotice;
     return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">Verifying your access...</div>;
   }
 
   if (!isLoggedIn) {
+    if (connectionNotice) return connectionNotice;
     return <Login authError={authError} />;
   }
 
   if (session?.role === 'student') {
-    return <StudentPortal path={path} navigate={navigate} onLogout={handleLogout} />;
+    return <NotificationProvider key={session.id} role="student">{connectionNotice}<StudentPortal path={path} navigate={navigate} onLogout={handleLogout} /></NotificationProvider>;
   }
   if (session?.role !== 'admin') return <Login authError="Contact admin for access." />;
 
   return (
-    <div id="app-shell" className="min-h-screen bg-[#FAFAFA] font-sans transition-colors duration-250 dark:bg-slate-950">
+    <NotificationProvider key={session.id} role="admin"><div id="app-shell" className="min-h-screen bg-[#FAFAFA] font-sans transition-colors duration-250 dark:bg-slate-950">
+      {connectionNotice}
 
       <a href="#route-panel-container" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10001] focus:rounded-xl focus:bg-white focus:p-4 focus:text-slate-900">Skip to page content</a>
       {saving && <div role="status" aria-live="polite" className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/30"><div className="rounded-xl bg-white p-5 text-slate-900 shadow-lg">Saving to the shared registry…</div></div>}
@@ -364,8 +416,11 @@ export default function App() {
           )}
 
           {path === '/team' && <LmsAdmin module="team" navigate={navigate} certificateCategories={db.settings.certificateCategories} />}
-          {(path === '/document-requests' || path === '/certificate-requests') && <DocumentRequestsAdmin onPrepare={prepareRequest} certificateCategories={db.settings.certificateCategories}/>}
-          {(path === '/lectures' || path.startsWith('/student')) && <div className="lms-panel"><h1>This page is outside the version 1 LMS workflow.</h1><button className="studio-secondary" onClick={() => navigate('/')}>Back to overview</button></div>}
+          {(path === '/document-requests' || path === '/certificate-requests') && <DocumentRequestsAdmin cachedRequests={requestCache} onRequestsChange={setRequestCache} onIssued={acceptIssuedRecord} renderReview={(request,saved,approve)=>request.kind==='certificate'?
+            <CertificateBuilder key={request.id} reviewMode requestDraft={request} editingCertificate={saved as Certificate|null} courses={db.courses} existingCertificates={db.certificates} settings={db.settings} onAddCertificateOption={handleAddCertificateOption} onSaveCertificate={approve} onSaveCourse={handleSaveCourse} onBack={()=>{}} navigate={()=>{}}/>:
+            <LetterBuilder key={request.id} reviewMode requestDraft={request} editingLetter={saved as Letter|null} settings={db.settings} onSaveLetter={approve} onBack={()=>{}} navigate={()=>{}}/>
+          }/>}
+          {(path === '/lectures' || path === '/student' || path.startsWith('/student/')) && <LmsAdmin module={path==='/lectures'?'materials':'batches'} navigate={navigate} />}
 
           {path === '/documents' && (
             <Home navigate={navigate} data={db} />
@@ -407,7 +462,6 @@ export default function App() {
               onAddCertificateOption={handleAddCertificateOption}
               onSaveCertificate={handleSaveCertificate}
               editingCertificate={editingCertificate}
-              requestDraft={requestDraft}
               onSaveCourse={handleSaveCourse}
               navigate={navigate}
             />
@@ -449,7 +503,6 @@ export default function App() {
               settings={db.settings}
               onSaveLetter={handleSaveLetter}
               editingLetter={editingLetter}
-              requestDraft={requestDraft}
               navigate={navigate}
             />
           )}
@@ -537,6 +590,6 @@ export default function App() {
         document.body
       )}
 
-    </div>
+    </div></NotificationProvider>
   );
 }

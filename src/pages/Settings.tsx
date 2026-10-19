@@ -1,3 +1,4 @@
+import { showWarning } from '../lib/dialogs';
 import React, { useState } from 'react';
 import { 
   Building2, 
@@ -77,7 +78,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image file is too large! Please upload a file smaller than 2MB.');
+      showWarning('Image file is too large! Please upload a file smaller than 2MB.');
       return;
     }
 
@@ -88,7 +89,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       if (type === 'stamp') setStampUrl(result);
     } catch (error) {
       console.error('Failed to compress uploaded image', error);
-      alert('Could not read that image. Please try another file.');
+      showWarning('Could not read that image. Please try another file.');
     }
   };
 
@@ -96,7 +97,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image file is too large! Please upload a file smaller than 2MB.');
+      showWarning('Image file is too large! Please upload a file smaller than 2MB.');
       return;
     }
     try {
@@ -106,7 +107,7 @@ export default function Settings({ settings, onSaveSettings }: SettingsProps) {
       )));
     } catch (error) {
       console.error('Failed to compress partner logo', error);
-      alert('Could not read that image. Please try another file.');
+      showWarning('Could not read that image. Please try another file.');
     }
   };
 

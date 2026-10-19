@@ -15,11 +15,12 @@ export default function Home({ navigate, data }: HomeProps) {
     <section className="relative flex flex-col gap-4 overflow-hidden rounded-[1.25rem] border border-[#0b6474] bg-gradient-to-r from-[#073e5a] via-[#08657a] to-[#087d80] p-7 text-white shadow-[0_20px_45px_rgba(4,54,78,.16)] sm:flex-row sm:items-center sm:justify-between sm:p-9">
       <div>
         <p className="mb-2 text-xs font-extrabold uppercase tracking-[.14em] text-teal-200">Operations / Documents</p>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Document Studio</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-sky-100">Create, manage, and export your organisation's documents from the LMS admin portal.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Documents</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-sky-100">Review student requests, create documents, and manage saved records in one place.</p>
       </div>
       <StudioLink navigate={navigate} href="/settings" className="studio-button relative z-10 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/50 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"><Settings size={16} />Document settings</StudioLink>
     </section>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"><h2 className="text-lg font-bold">Student document requests</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Review certificates and offer letters requested by students, then prepare the approved documents.</p><StudioLink navigate={navigate} href="/document-requests" className="studio-button studio-button-primary mt-4 inline-flex">Review student requests <ArrowUpRight size={16}/></StudioLink></section>
     <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Saved document totals">
       {tools.map(tool => {
         const Icon = tool.icon;

@@ -1147,6 +1147,7 @@ export default function CertificatePreview({
               >
                 <span className="text-[14px] font-black uppercase tracking-widest text-slate-700 block leading-tight" style={{ fontSize: `${14 * getElementScale('certificateId')}px` }}>CERTIFICATE ID</span>
                 <span className="font-mono font-black text-black text-base mt-2" style={{ fontSize: `${16 * getElementScale('certificateId')}px` }}>{certificate.certificateId}</span>
+                {certificate.studentId&&<span className="font-mono text-[10px] font-bold text-slate-700 mt-1">Student ID: {certificate.studentId}</span>}
                 {renderResizeHandle('certificateId')}
               </div>
 

@@ -1,3 +1,4 @@
+import { showWarning } from '../../lib/dialogs';
 import { getReservedInvoiceNumbers } from '../../lib/documentStudio';
 import React, { useState } from 'react';
 import { 
@@ -121,7 +122,7 @@ export default function BulkInvoiceModal({
   // Delete row
   const handleDeleteRow = (id: string) => {
     if (rows.length === 1) {
-      alert('You must keep at least one row in the bulk creation list.');
+      showWarning('You must keep at least one row in the bulk creation list.');
       return;
     }
     setRows(prev => prev.filter(r => r.id !== id));
@@ -198,7 +199,7 @@ export default function BulkInvoiceModal({
   const handleSubmitRows = async () => {
     const validRows = rows.filter(r => r.clientName.trim() !== '');
     if (validRows.length === 0) {
-      alert('Please enter a Client Name for at least one invoice.');
+      showWarning('Please enter a Client Name for at least one invoice.');
       return;
     }
 
@@ -290,7 +291,7 @@ export default function BulkInvoiceModal({
         const amountText = amountIdx >= 0 ? cleanCols[amountIdx] : '';
         const amount = amountText ? Number(amountText.replace(/[₹$€,\s]/g, '')) : NaN;
         if (!clientName.trim() || !Number.isFinite(amount) || amount < 0) {
-          alert(`CSV row ${i + 1} needs a client name and a valid non-negative amount.`);
+          showWarning(`CSV row ${i + 1} needs a client name and a valid non-negative amount.`);
           return;
         }
 

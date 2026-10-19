@@ -235,7 +235,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 <div className="flex justify-between items-start text-[15.5px] font-semibold text-[#1e293b] mt-4 mb-4">
                   <div className="text-left font-mono">
                     <span className="text-[#64748b] font-medium">Ref No: </span>
-                    <span className="text-black font-extrabold">{referenceId}</span>
+                    <span className="text-black font-extrabold">{referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[#64748b] font-medium">Date: </span>
@@ -590,7 +590,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 <div className="flex justify-between items-start text-[15px] font-bold text-black mb-6">
                   <div className="font-mono">
                     <span className="text-slate-700 font-semibold">Ref No: </span>
-                    <span className="text-black font-black">{referenceId}</span>
+                    <span className="text-black font-black">{referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span>
                   </div>
                   <div>
                     <span className="text-slate-700 font-semibold">Date: </span>
@@ -675,7 +675,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 {/* Simplified Header */}
                 <div className="flex justify-between items-center border-b border-slate-200 pb-1 mb-2">
                   <span className="font-extrabold uppercase text-[12.5px] tracking-wider text-black">{settings.name}</span>
-                  <span className="text-[11.5px] text-slate-700 font-bold">Ref: {referenceId}</span>
+                  <span className="text-[11.5px] text-slate-700 font-bold">Ref: {referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span>
                 </div>
 
                 <div className="text-center mb-2">
@@ -755,7 +755,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 {/* Simplified Header */}
                 <div className="flex justify-between items-center border-b border-slate-200 pb-0.5 mb-2">
                   <span className="font-extrabold uppercase text-[12.5px] tracking-wider text-black">{settings.name}</span>
-                  <span className="text-[11.5px] text-slate-700 font-bold">Ref: {referenceId}</span>
+                  <span className="text-[11.5px] text-slate-700 font-bold">Ref: {referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span>
                 </div>
 
                 <div className="space-y-1.5 text-black text-[13px] leading-relaxed">
@@ -923,7 +923,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
                 {/* Simplified Header */}
                 <div className="flex justify-between items-center border-b border-slate-200 pb-0.5 mb-2">
                   <span className="font-extrabold uppercase text-[12.5px] tracking-wider text-black">{settings.name}</span>
-                  <span className="text-[11.5px] text-slate-700 font-bold">Ref: {referenceId}</span>
+                  <span className="text-[11.5px] text-slate-700 font-bold">Ref: {referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span>
                 </div>
 
                 <div className="text-center mb-3">
@@ -1118,7 +1118,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
               {/* Candidate Info Block on Left */}
               <div className="text-left text-[15.5px] text-black space-y-1 mb-8 leading-normal">
                 <p className="font-black text-[17px] text-black">{getPrefixedName(letter.candidateName)}</p>
-                <p className="font-bold text-slate-900">Emp ID: <span className="text-black font-black">{referenceId}</span></p>
+                <p className="font-bold text-slate-900">Emp ID: <span className="text-black font-black">{referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span></p>
                 <p className="font-bold text-slate-900">Designation: <span className="text-black font-black">{letter.designation}</span></p>
               </div>
 
@@ -1237,7 +1237,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
               {/* Candidate Info Block on Left */}
               <div className="text-left text-[15.5px] text-black space-y-1 mb-8 leading-normal">
                 <p className="font-black text-[17px] text-black">{getPrefixedName(letter.candidateName)}</p>
-                <p className="font-bold text-slate-900">Emp ID: <span className="text-black font-black">{referenceId}</span></p>
+                <p className="font-bold text-slate-900">Emp ID: <span className="text-black font-black">{referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span></p>
                 <p className="font-bold text-slate-900">Designation: <span className="text-black font-black">{letter.designation}</span></p>
               </div>
 
@@ -1354,7 +1354,7 @@ export default function LetterPreview({ letter, settings, onClose, showActions =
             <div className="flex justify-between items-start text-[16px] font-semibold text-[#1e293b] mt-6 mb-8">
               <div className="text-left font-mono">
                 <span className="text-[#64748b] font-medium">Ref No: </span>
-                <span className="text-black font-extrabold">{referenceId}</span>
+                <span className="text-black font-extrabold">{referenceId}{letter.studentId&&<small className="block text-[11px] font-semibold mt-1">Student ID: {letter.studentId}</small>}</span>
               </div>
               <div className="text-right">
                 <span className="text-[#64748b] font-medium">Date: </span>

@@ -22,13 +22,14 @@ export const rendered = {
  module:renderToString(<DocumentNavigation path='/certificate/new' navigate={nothing} editing/>),
  sidebar:renderToString(<Navbar path='/settings' navigate={nothing} settings={settings} userEmail={null} darkMode={false} setDarkMode={nothing} onLogout={nothing}/>),
  certificate:renderToString(<CertificateBuilder settings={settings} courses={[]} existingCertificates={[]} onBack={nothing} navigate={nothing} onSaveCertificate={save} onSaveCourse={save} onAddCertificateOption={async name=>name}/>),
+ certificateReview:renderToString(<CertificateBuilder reviewMode settings={settings} courses={[]} existingCertificates={[]} onBack={nothing} navigate={nothing} onSaveCertificate={save} onSaveCourse={save} onAddCertificateOption={async name=>name}/>),
  bulk:renderToString(<BulkCertificateGenerator settings={settings} courses={[]} existingCertificates={[]} navigate={nothing} onSaveCertificates={save} onSaveCourse={save} onAddCertificateOption={async name=>name}/>),
  payslip:renderToString(<PayslipBuilder settings={settings} employees={[]} onSaveEmployees={save} onSavePayslip={save} onBack={nothing} navigate={nothing}/>),
  letter:renderToString(<LetterBuilder settings={settings} onSaveLetter={save} onBack={nothing} navigate={nothing}/>),
  invoice:renderToString(<InvoiceBuilder settings={settings} clients={[]} existingInvoices={[]} onSaveInvoice={save} onBack={nothing}/>),
  settings:renderToString(<Settings settings={settings} onSaveSettings={save}/>),
 };`;
-const result=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'cjs',platform:'node',loader:{'.png':'dataurl'},plugins:[{name:'mock-persistence-for-render',setup(build){build.onLoad({filter:/src[\\/]lib[\\/]documentStudio\.ts$/},()=>({contents:`export const getReservedInvoiceNumbers=()=>[];export const errorMessage=e=>e.message;export const loadInvoiceDraft=async()=>null;export const saveInvoiceDraft=async()=>{};`}));}}]});
+const result=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'cjs',platform:'node',loader:{'.png':'dataurl','.css':'empty'},plugins:[{name:'mock-persistence-for-render',setup(build){build.onLoad({filter:/src[\\/]lib[\\/]documentStudio\.ts$/},()=>({contents:`export const getReservedInvoiceNumbers=()=>[];export const errorMessage=e=>e.message;export const loadInvoiceDraft=async()=>null;export const saveInvoiceDraft=async()=>{};`}));}}]});
 const output={exports:{}};
 try { new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),output,output.exports); } catch(error) { console.error(error.message); process.exit(1); }
 const {rendered,getDocumentBackLink,getDocumentSection,StudioLink}=output.exports;
@@ -40,7 +41,8 @@ for(const type of ['invoice','certificate','letter','payslip']) {
 assert.equal(getDocumentBackLink('/certificate/bulk').path,'/certificate/old');
 assert.equal(getDocumentBackLink('/settings').path,'/documents');
 assert.equal(getDocumentSection('/students'),undefined);
-assert.equal(getDocumentSection('/certificate-requests'),undefined);
+assert.equal(getDocumentSection('/certificate-requests').path,'/document-requests');
+assert.equal(getDocumentSection('/document-requests').label,'Student requests');
 let navigated='';let prevented=false;
 const link=StudioLink({navigate:path=>navigated=path,href:'/documents'});
 link.props.onClick({button:0,defaultPrevented:false,preventDefault(){prevented=true;}});
@@ -53,6 +55,14 @@ assert.match(rendered.module,/Back to certificates/);
 assert.match(rendered.home,/>2<\/p>/);
 assert.match(rendered.home,/No activity yet/);
 assert.match(rendered.sidebar,/Document settings/);
+assert.match(rendered.sidebar,/>Documents<\/span>/);
+assert.doesNotMatch(rendered.sidebar,/>Document requests<\/span>|>Document Studio<\/span>/,'Operations has a single Documents entry');
+assert.match(rendered.home,/Review student requests/);
+assert.match(rendered.certificateReview,/Approve and send/,'Approval uses the same certificate editor in-place');
+assert.match(rendered.certificateReview,/Edit document details/,'Corrections are optional within the review');
+assert.match(rendered.sidebar,/Batches &amp; students/);
+assert.doesNotMatch(rendered.sidebar,/>Students<\/span>|>Batches<\/span>/,'Batch and student management share one navigation entry');
+assert.doesNotMatch(rendered.certificateReview,/Save draft|Publish to student|Go to Bulk Studio/,'Review never requires Studio or publication navigation');
 for(const [form,html] of Object.entries(rendered))assert.ok(html.length>20,`${form} renders`);
 for(const form of ['certificate','bulk']) {assert.match(rendered[form],/Add new option/);assert.match(rendered[form],/Certification category/);assert.match(rendered[form],/Partner institute/);}
 assert.ok(!rendered.payslip.includes('Yameen Hakim'),'No seeded employee preview');

@@ -1,3 +1,4 @@
+import { confirmAction, showWarning } from '../lib/dialogs';
 import SavedOptionSelect from '../components/SavedOptionSelect';
 import { getCertificateCategoryOptions } from '../utils/certificateUtils';
 import React, { useState, useEffect, useRef } from 'react';
@@ -30,6 +31,7 @@ interface CertificateBuilderProps {
   onSaveCertificate: (cert: Certificate) => Promise<boolean>;
   editingCertificate?: Certificate | null;
   requestDraft?: DocumentRequest | null;
+  reviewMode?: boolean;
   onSaveCourse: (course: Course) => Promise<boolean>;
   navigate: (path: string) => void;
 }
@@ -44,12 +46,17 @@ export default function CertificateBuilder({
   onSaveCertificate,
   editingCertificate = null,
   requestDraft = null,
+  reviewMode = false,
   navigate
 }: CertificateBuilderProps) {
   
+  const [showDetails,setShowDetails]=useState(false);
+  const [submitting,setSubmitting]=useState(false);
+  const submitRef=useRef(false);
   // Form Fields State
   const [certificateId, setCertificateId] = useState('');
   const [candidateName, setCandidateName] = useState('');
+  const [studentId,setStudentId]=useState('');
   const [certificateType, setCertificateType] = useState('Course Completion');
   const [presentationText, setPresentationText] = useState(DEFAULT_PRESENTATION_TEXT);
   const [completionText, setCompletionText] = useState('has successfully completed the course');
@@ -60,7 +67,7 @@ export default function CertificateBuilder({
   const [eventDate, setEventDate] = useState('');
   const [dateLineText, setDateLineText] = useState('');
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [designTemplate, setDesignTemplate] = useState<'royal' | 'emerald' | 'academic' | 'modern-blue'>('royal');
+  const [designTemplate, setDesignTemplate] = useState<'royal' | 'emerald' | 'academic' | 'modern-blue'>(settings.certTemplate||'royal');
   const [partnerProfileId, setPartnerProfileId] = useState('');
   const [certificateLayout, setCertificateLayout] = useState<CertificateLayout>({ offsets: {} });
   const [layoutEditing, setLayoutEditing] = useState(false);
@@ -106,6 +113,7 @@ export default function CertificateBuilder({
 
   // Load editing certificate or generate defaults
   useEffect(() => {
+    setStudentId(requestDraft?.student_code || editingCertificate?.studentId || '');
     if (editingCertificate) {
       setCertificateId(editingCertificate.certificateId);
       setCandidateName(editingCertificate.candidateName);
@@ -147,9 +155,9 @@ export default function CertificateBuilder({
         setCandidateName(requestDraft.candidate_name);
         setCertificateType(requestDraft.certificate_type || 'Course Completion');
         setCompletionText(getDefaultCompletionText(requestDraft.certificate_type || 'Course Completion'));
-        setProgramName(requestDraft.program_name);
-        setStartDate(requestDraft.start_date || '');
-        setEndDate(requestDraft.end_date || '');
+        setProgramName(requestDraft.certificate_type==='Internship Completion' && requestDraft.designation ? requestDraft.designation : requestDraft.program_name);
+        setStartDate(requestDraft.requested_start_date || requestDraft.start_date || '');
+        setEndDate(requestDraft.requested_end_date || requestDraft.end_date || '');
       }
     }
   }, [editingCertificate, requestDraft]);
@@ -157,16 +165,20 @@ export default function CertificateBuilder({
   const selectedPartner = settings.certificatePartners?.find((partner) => partner.id === partnerProfileId);
 
   const handleSaveCertificate = async () => {
+    if(submitRef.current)return;
+    if(studentId.trim()&&!/^LT-STU-[0-9]+$/.test(studentId.trim())){showWarning('Enter the student ID shown in Batches & students, or leave it empty for a document without a registered student.');return;}
     if (!candidateName.trim()) {
-      alert('Candidate Name is required!');
+      showWarning('Candidate Name is required!');
       return;
     }
     if (!programName.trim()) {
-      alert('Program Name is required!');
+      showWarning('Program Name is required!');
       return;
     }
 
     const savedCert: Certificate = {
+      requestId: requestDraft?.id || editingCertificate?.requestId,
+      studentId:studentId.trim()||undefined,
       id: editingCertificate ? editingCertificate.id : crypto.randomUUID(),
       certificateId,
       candidateName,
@@ -198,12 +210,12 @@ export default function CertificateBuilder({
       createdAt: editingCertificate ? editingCertificate.createdAt : new Date().toISOString()
     };
 
-    if (!await onSaveCertificate(savedCert)) return;
+    submitRef.current=true;setSubmitting(true);
+    try {await onSaveCertificate(savedCert);} finally {submitRef.current=false;setSubmitting(false);}
   };
 
   return (
-    <div className="space-y-8 pb-12 animate-fade-in">
-      {requestDraft?.kind === 'certificate' && <div className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-950"><strong>Preparing a student request for {requestDraft.candidate_name}.</strong> Check the details, save and share the certificate, then mark the request shared in <button type="button" className="font-bold underline" onClick={() => navigate('/document-requests')}>Document requests</button>.</div>}
+    <div className={`space-y-8 pb-12 animate-fade-in ${reviewMode?'request-inline-editor':''} ${showDetails?'show-details':''}`}>
       
       {/* Header controls bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-850">
@@ -211,26 +223,28 @@ export default function CertificateBuilder({
           <div>
             <span className="text-xxs font-bold text-[#B8894D] uppercase tracking-widest block">Certificates</span>
             <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">
-              {editingCertificate ? 'Edit certificate' : 'Create certificate'}
+              {reviewMode ? 'Document preview' : editingCertificate ? 'Edit certificate' : 'Create certificate'}
             </h1>
           </div>
         </div>
         
         <button
           type="button"
+          disabled={submitting}
           onClick={handleSaveCertificate}
           className="studio-button studio-button-primary text-sm"
         >
           <Save className="h-4 w-4" />
-          <span>Save certificate</span>
+          <span>{submitting?'Sending…':reviewMode?'Approve and send':'Save certificate'}</span>
         </button>
       </div>
 
+      {reviewMode&&<button type="button" className="request-detail-toggle" aria-expanded={showDetails} onClick={()=>setShowDetails(!showDetails)}>{showDetails?'Done editing':'Edit document details'}</button>}
       {/* Main Studio Editor Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(300px,370px)_minmax(0,1fr)] gap-5 items-start">
+      <div className="request-editor-columns grid grid-cols-1 lg:grid-cols-[minmax(300px,370px)_minmax(0,1fr)] gap-5 items-start">
         
         {/* Left Form Board (2 cols) */}
-        <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7.5rem)] lg:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 rounded-2xl">
+        <div className="request-editor-fields lg:sticky lg:top-24 lg:max-h-[calc(100vh-7.5rem)] lg:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 rounded-2xl">
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 md:p-5 shadow-sm space-y-4">
           <div className="border-b border-gray-100 dark:border-slate-850 pb-4">
             <div className="flex items-start justify-between gap-3">
@@ -279,6 +293,7 @@ export default function CertificateBuilder({
           </div>
 
           {/* Certification Category */}
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Student ID (optional)<input value={studentId} readOnly={!!requestDraft} onChange={event=>setStudentId(event.target.value)} placeholder="LT-STU-100001" className="mt-2 block w-full rounded-xl border border-slate-300 bg-transparent px-4 py-2.5 text-sm font-mono"/></label>
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certification Category</label>
             <SavedOptionSelect label="Certification category" value={certificateType}
@@ -519,18 +534,19 @@ export default function CertificateBuilder({
           <div className="pt-4 border-t border-gray-100 dark:border-slate-850 flex justify-end">
             <button
               type="button"
-              onClick={handleSaveCertificate}
+              disabled={submitting}
+          onClick={handleSaveCertificate}
               className="studio-button studio-button-primary text-sm"
             >
               <Save className="h-4 w-4" />
-              <span>Save certificate</span>
+              <span>{submitting?'Sending…':reviewMode?'Approve and send':'Save certificate'}</span>
             </button>
           </div>
         </div>
         </div>
 
         {/* Right Preview Column (3 cols) */}
-        <div className="min-w-0 lg:sticky lg:top-24 space-y-6">
+        <div className="request-editor-preview min-w-0 lg:sticky lg:top-24 space-y-6">
           <div className="flex flex-col xl:flex-row items-stretch gap-4">
             <div className="min-w-0 flex-1 rounded-2xl border border-gray-200 dark:border-slate-880 bg-white dark:bg-slate-900 p-4 shadow-sm">
               <h3 className="font-extrabold text-gray-900 dark:text-white text-sm mb-4 border-b border-gray-50 dark:border-slate-850 pb-3 flex items-center gap-1.5">
@@ -542,6 +558,7 @@ export default function CertificateBuilder({
               <div className="border border-gray-100 dark:border-slate-850 rounded-2xl p-3 bg-slate-50 dark:bg-slate-950/40">
                 <CertificatePreview 
                   certificate={{
+                    studentId:studentId.trim()||undefined,
                     id: 'preview',
                     certificateId,
                     candidateName,
@@ -574,7 +591,7 @@ export default function CertificateBuilder({
                   }} 
                   settings={settings}
                   showActions={false}
-                  enableLayoutEditing
+                  enableLayoutEditing={!reviewMode}
                   layoutEditing={layoutEditing}
                   onLayoutEditingChange={setLayoutEditing}
                   selectedLayoutElement={selectedLayoutElement}
@@ -585,7 +602,7 @@ export default function CertificateBuilder({
               </div>
             </div>
 
-            <CertificateLayoutControls
+            {!reviewMode&&<CertificateLayoutControls
               certificateLayout={certificateLayout}
               selectedElement={selectedLayoutElement}
               onSelectElement={setSelectedLayoutElement}
@@ -599,9 +616,10 @@ export default function CertificateBuilder({
               canUndo={layoutHistory.length > 0}
               canRedo={layoutFuture.length > 0}
               disabled={!layoutEditing}
-            />
+            />}
           </div>
 
+          {!reviewMode&&<>
           {/* Informational Widget */}
           <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-xxs text-gray-500 space-y-2.5">
             <div className="flex items-center space-x-1.5 text-amber-600 font-bold">
@@ -612,8 +630,8 @@ export default function CertificateBuilder({
               Have multiple students to certify? Do not write them one-by-one. Navigate to the Bulk Studio to upload your student list as an Excel file and generate high-resolution PDFs automatically in seconds.
             </p>
             <button
-              onClick={() => {
-                if (confirm('Navigate to bulk import? Unsaved builder changes may be lost.')) {
+              onClick={async () => {
+                if (await confirmAction('Navigate to bulk import? Unsaved builder changes may be lost.')) {
                   navigate('/certificate/bulk');
                 }
               }}
@@ -622,6 +640,7 @@ export default function CertificateBuilder({
               Go to Bulk Studio
             </button>
           </div>
+          </>}
         </div>
 
       </div>

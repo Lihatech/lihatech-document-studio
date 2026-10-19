@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("FIREBASE_PROJECT_ID", "lihatech-document-studio")
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-only-key")
+os.environ["SUPABASE_SECRET_KEY"]="sb_secret_test_only"
 
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
@@ -51,7 +52,7 @@ class Table:
 class MockApproval(unittest.TestCase):
     def setUp(self):
         self.bookings = Table([{"id": BOOKING_ID, "slot_id": SLOT_ID,
-            "student_id": STUDENT_ID, "status": "requested"}])
+            "student_id": STUDENT_ID, "status": "requested", "prepared_topics": "Java basics, SQL joins"}])
         self.slots = Table([{"id": SLOT_ID, "status": "open",
             "starts_at": "2099-01-01T10:00:00+00:00", "ends_at": "2099-01-01T11:00:00+00:00"}])
         self.students = Table([{"id": STUDENT_ID, "full_name": "Student",
@@ -66,6 +67,7 @@ class MockApproval(unittest.TestCase):
         self.calendar = patch.object(main.mock_calendar, "configured", return_value=True).start()
         self.create = patch.object(main.mock_calendar, "create_interview",
             return_value=("lms" + BOOKING_ID.replace("-", ""), "https://meet.google.com/abc-defg-hij")).start()
+        self.events = patch.object(main.mock_calendar, "calendar_events", return_value=[]).start()
         self.client = TestClient(main.app)
 
     def tearDown(self):
@@ -78,7 +80,7 @@ class MockApproval(unittest.TestCase):
         self.assertEqual(self.bookings.rows[0]["status"], "booked")
         self.assertEqual(self.bookings.rows[0]["meeting_url"], "https://meet.google.com/abc-defg-hij")
         self.create.assert_called_once_with(BOOKING_ID, "Student", "student@example.com",
-            "2099-01-01T10:00:00+00:00", "2099-01-01T11:00:00+00:00")
+            "2099-01-01T10:00:00+00:00", "2099-01-01T11:00:00+00:00", "Java basics, SQL joins")
 
     def test_calendar_failure_keeps_request_pending(self):
         self.create.side_effect = main.mock_calendar.CalendarError("Meet unavailable")
@@ -87,14 +89,61 @@ class MockApproval(unittest.TestCase):
         self.assertEqual(self.bookings.rows[0]["status"], "requested")
         self.assertEqual(self.bookings.rows[0]["calendar_error"], "Meet unavailable")
 
+    def test_older_request_can_still_be_approved(self):
+        self.bookings.rows[0].pop("prepared_topics")
+        response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.create.call_args.args[-1], "")
+
     def test_no_calendar_prevents_claim(self):
         self.calendar.return_value = False
         response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")
         self.assertEqual(response.status_code, 503)
         self.assertEqual(self.bookings.rows[0]["status"], "requested")
 
+    def test_conflict_prevents_approval_before_claim(self):
+        self.events.return_value = [{"id": "busy", "busy": True}]
+        response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.bookings.rows[0]["status"], "requested")
+        self.create.assert_not_called()
+
+    def test_retry_ignores_own_event_and_free_events(self):
+        self.bookings.rows[0]["status"] = "approving"
+        self.events.return_value = [{"id": "lms" + BOOKING_ID.replace("-", ""), "busy": True}, {"id": "free", "busy": False}]
+        response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")
+        self.assertEqual(response.status_code, 200)
+
+    def test_calendar_read_failure_does_not_approve(self):
+        self.events.side_effect = main.mock_calendar.CalendarError("Calendar unavailable")
+        response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")
+        self.assertEqual(response.status_code, 502)
+        self.create.assert_not_called()
+
+    def test_admin_calendar_range_and_validation(self):
+        response = self.client.get("/api/admin/mocks/events?month=2026-10")
+        self.assertEqual(response.status_code, 200)
+        self.events.assert_called_once_with("2026-10-01T00:00:00+05:30", "2026-11-01T00:00:00+05:30")
+        for month in ("2026-13", "garbage", "2026-1", "0001-01"):
+            self.assertEqual(self.client.get(f"/api/admin/mocks/events?month={month}").status_code, 400)
+
+    def test_students_cannot_read_admin_calendar_events(self):
+        main.app.dependency_overrides.pop(main.require_manager)
+        response = self.client.get("/api/admin/mocks/events?month=2026-10")
+        self.assertEqual(response.status_code, 401)
+        self.events.assert_not_called()
+
 
 class StudentRequest(unittest.TestCase):
+    def test_topics_required_and_bounded(self):
+        for topics in (None, "", "   ", "x" * 2001):
+            body = {"starts_at": "2099-01-01T09:00:00+05:30"}
+            if topics is not None:
+                body["prepared_topics"] = topics
+            response = self.client.post("/api/student/mocks/request", json=body)
+            self.assertEqual(response.status_code, 422)
+        self.database.rpc.assert_not_called()
+
     def setUp(self):
         main.app.dependency_overrides[main.require_active_student] = lambda: {"firebase_uid": "student-uid"}
         self.client = TestClient(main.app)
@@ -112,27 +161,27 @@ class StudentRequest(unittest.TestCase):
         patch.stopall()
 
     def test_student_requests_selected_hour(self):
-        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T09:00:00+05:30"})
+        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T09:00:00+05:30", "prepared_topics": "  SQL joins  "})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "requested")
         self.database.rpc.assert_called_once_with("lms_request_mock_time", {
             "p_uid": "student-uid", "p_starts_at": "2099-01-01T09:00:00+05:30",
-            "p_first_hour": 9, "p_last_hour": 18,
+            "p_first_hour": 9, "p_last_hour": 18, "p_prepared_topics": "SQL joins",
         })
 
     def test_student_requests_quarter_hour_start(self):
         self.day.return_value["hours"] = [{"starts_at": "2099-01-01T13:15:00+05:30",
                                           "ends_at": "2099-01-01T14:15:00+05:30", "available": True}]
-        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T13:15:00+05:30"})
+        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T13:15:00+05:30", "prepared_topics": "  SQL joins  "})
         self.assertEqual(response.status_code, 200)
         self.database.rpc.assert_called_once_with("lms_request_mock_time", {
             "p_uid": "student-uid", "p_starts_at": "2099-01-01T13:15:00+05:30",
-            "p_first_hour": 9, "p_last_hour": 18,
+            "p_first_hour": 9, "p_last_hour": 18, "p_prepared_topics": "SQL joins",
         })
 
     def test_student_cannot_request_unavailable_hour(self):
         self.day.return_value["hours"][0]["available"] = False
-        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T09:00:00+05:30"})
+        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T09:00:00+05:30", "prepared_topics": "  SQL joins  "})
         self.assertEqual(response.status_code, 409)
         self.database.rpc.assert_not_called()
 
@@ -141,9 +190,10 @@ class StudentRequest(unittest.TestCase):
             "message": "Could not find the function public.lms_request_mock_time",
             "code": "PGRST202", "details": "", "hint": "",
         })
-        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T09:00:00+05:30"})
+        response = self.client.post("/api/student/mocks/request", json={"starts_at": "2099-01-01T09:00:00+05:30", "prepared_topics": "  SQL joins  "})
         self.assertEqual(response.status_code, 503)
-        self.assertIn("database migration", response.json()["detail"])
+        self.assertIn("temporarily unavailable", response.json()["detail"])
+        self.assertNotIn("database migration", response.json()["detail"])
 
     def test_day_availability_hides_other_interviews(self):
         day = (datetime.now(main.MOCK_ZONE) + timedelta(days=2)).date().isoformat()

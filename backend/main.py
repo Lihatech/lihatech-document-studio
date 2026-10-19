@@ -2,6 +2,9 @@ import logging
 import json
 import mimetypes
 import os
+import base64
+import re
+from pathlib import Path
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
@@ -14,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import Response
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from supabase import Client, create_client
 if __package__:
     from . import mock_calendar
@@ -22,13 +25,24 @@ else:
     import mock_calendar
 
 
-load_dotenv()
+load_dotenv(Path(__file__).with_name('.env'))
 
 firebase_project_id = os.environ["FIREBASE_PROJECT_ID"]
 supabase_url = os.environ["SUPABASE_URL"]
-supabase_secret_key = os.getenv("SUPABASE_SECRET_KEY") or os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-if supabase_secret_key.startswith("sb_publishable_"):
-    raise RuntimeError("The file API needs SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY, not a publishable key.")
+def server_key() -> str:
+    for name in ("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+        value = os.getenv(name, "").strip()
+        if value.startswith("sb_secret_"):
+            return value
+        try:
+            claims = json.loads(base64.urlsafe_b64decode(value.split(".")[1] + "=="))
+            if isinstance(claims, dict) and claims.get("role") == "service_role":
+                return value
+        except (IndexError, ValueError, UnicodeDecodeError):
+            pass
+    raise RuntimeError("Configure a server secret in backend/.env: SUPABASE_SECRET_KEY (sb_secret_...) or SUPABASE_SERVICE_ROLE_KEY. Browser publishable keys cannot authorize private files or interview bookings.")
+
+supabase_secret_key = server_key()
 
 try:
     firebase_admin.get_app()
@@ -47,6 +61,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -130,7 +145,7 @@ def create_staff_invitation(
     if not full_name:
         raise HTTPException(status_code=422, detail="Full name cannot be blank.")
     if body.role != "admin":
-        raise HTTPException(status_code=403, detail="Instructor access is deferred to version 2.")
+        raise HTTPException(status_code=403, detail="Only admin invitations are supported.")
 
     email = str(body.email).strip().lower()
     if not email.endswith("@lihatech.com"):
@@ -212,9 +227,10 @@ def download_student_material(
     media_type = mimetypes.guess_type(material["storage_path"])[0]
     if media_type not in ("application/pdf", "image/png", "image/jpeg"):
         media_type = "application/octet-stream"
+    filename = re.sub(r"[^A-Za-z0-9._-]", "_", Path(material["storage_path"]).name) or "learning-material"
     return Response(content, media_type=media_type, headers={
         "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
-        "Content-Disposition": f'{"inline" if media_type in ("application/pdf", "image/png", "image/jpeg") else "attachment"}; filename="learning-material"',
+        "Content-Disposition": f'{"inline" if media_type in ("application/pdf", "image/png", "image/jpeg") else "attachment"}; filename="{filename}"',
     })
 
 
@@ -230,6 +246,15 @@ def require_active_student(user: Annotated[dict, Depends(verify_firebase_user)])
 
 class MockRequestInput(BaseModel):
     starts_at: datetime
+    prepared_topics: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("prepared_topics")
+    @classmethod
+    def clean_topics(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Tell us which topics you have prepared.")
+        return value
 
 
 MOCK_ZONE = timezone(timedelta(hours=5, minutes=30), 'Asia/Kolkata')
@@ -343,13 +368,14 @@ def request_student_mock(body: MockRequestInput, student: Annotated[dict, Depend
         booking_id = supabase.rpc("lms_request_mock_time", {
             "p_uid": student["firebase_uid"], "p_starts_at": hour["starts_at"],
             "p_first_hour": first, "p_last_hour": last,
+            "p_prepared_topics": body.prepared_topics,
         }).execute().data
     except Exception as error:
         code = getattr(error, "code", None)
         message = getattr(error, "message", str(error))
         if code == "PGRST202":
             logging.getLogger(__name__).error("Mock booking database migration is missing: %s", error)
-            raise HTTPException(status_code=503, detail="Mock booking is not ready yet. Contact admin to apply the database migration.") from None
+            raise HTTPException(status_code=503, detail="Interview booking is temporarily unavailable. Please contact admin.") from None
         if "already have an interview request" in message:
             raise HTTPException(status_code=409, detail="You already have an interview request at this time.") from None
         if code == "23505" or "already reserved" in message or "just taken" in message or "unavailable" in message:
@@ -365,11 +391,32 @@ def mock_calendar_status(_admin: Annotated[dict, Depends(require_manager)]) -> d
             "interviewer_email": os.getenv("MOCK_INTERVIEWER_EMAIL", "")}
 
 
+@app.get("/api/admin/mocks/events")
+def admin_mock_events(month: str, _admin: Annotated[dict, Depends(require_manager)]) -> dict:
+    try:
+        if len(month) != 7 or month[4] != "-":
+            raise ValueError
+        year, number = map(int, month.split("-"))
+        if not 1900 <= year <= 2100:
+            raise ValueError
+        start = datetime(year, number, 1, tzinfo=MOCK_ZONE)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Choose a valid calendar month.") from None
+    if not mock_calendar.configured():
+        raise HTTPException(status_code=503, detail="Connect the LihaTech Google Calendar to view events.")
+    end = start + timedelta(days=monthrange(year, number)[1])
+    try:
+        events = mock_calendar.calendar_events(start.isoformat(), end.isoformat())
+    except mock_calendar.CalendarError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None
+    return {"month": month, "events": events}
+
+
 @app.post("/api/admin/mocks/{booking_id}/approve")
 def approve_mock(booking_id: UUID, _admin: Annotated[dict, Depends(require_manager)]) -> dict:
     if not mock_calendar.configured():
         raise HTTPException(status_code=503, detail="Connect the LihaTech Google Calendar before approving requests.")
-    rows = (supabase.table("mock_interview_bookings").select("id,slot_id,student_id,status")
+    rows = (supabase.table("mock_interview_bookings").select("id,slot_id,student_id,status,prepared_topics")
             .eq("id", str(booking_id)).limit(1).execute().data)
     if not rows or rows[0]["status"] not in ("requested", "approving"):
         raise HTTPException(status_code=409, detail="This request is no longer pending.")
@@ -383,6 +430,14 @@ def approve_mock(booking_id: UUID, _admin: Annotated[dict, Depends(require_manag
     slot, student = slots[0], students[0]
     if datetime.fromisoformat(slot["starts_at"].replace("Z", "+00:00")) <= datetime.now(timezone.utc):
         raise HTTPException(status_code=409, detail="This interview time has passed.")
+    try:
+        events = mock_calendar.calendar_events(slot["starts_at"], slot["ends_at"])
+    except mock_calendar.CalendarError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None
+    # A retry may already have created this booking's deterministic calendar event.
+    own_event = "lms" + booking_id.hex
+    if any(event["busy"] and event["id"] != own_event for event in events):
+        raise HTTPException(status_code=409, detail="This time now conflicts with Google Calendar. Review the calendar before accepting.")
     if booking["status"] == "requested":
         claimed = (supabase.table("mock_interview_bookings").update({"status": "approving", "calendar_error": None})
                    .eq("id", str(booking_id)).eq("status", "requested").select("id").execute().data)
@@ -390,7 +445,7 @@ def approve_mock(booking_id: UUID, _admin: Annotated[dict, Depends(require_manag
             raise HTTPException(status_code=409, detail="This request changed. Refresh and try again.")
     try:
         event_id, meeting_url = mock_calendar.create_interview(str(booking_id), student["full_name"],
-            student["email"], slot["starts_at"], slot["ends_at"])
+            student["email"], slot["starts_at"], slot["ends_at"], booking.get("prepared_topics", ""))
     except mock_calendar.CalendarError as error:
         (supabase.table("mock_interview_bookings").update({"status": "requested", "calendar_error": str(error)})
          .eq("id", str(booking_id)).eq("status", "approving").execute())

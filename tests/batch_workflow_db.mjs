@@ -27,7 +27,7 @@ try {
   }
   const cleaned=(await db.query(`select b.code,e.status,e.left_at from public.batch_students e join public.students s on s.id=e.student_id join public.batches b on b.id=e.batch_id where s.firebase_uid='migration-student' order by b.code`)).rows;
   if(cleaned.length!==2||cleaned[0].status!=='active'||cleaned[1].status!=='revoked'||!cleaned[1].left_at) throw new Error('Migration did not preserve and retire legacy multiple memberships');
-  for(const file of ['student_document_requests.sql','batch_document_workflow.sql']) {
+  for(const file of ['student_document_requests.sql','batch_document_workflow.sql','student_personal_document_details.sql','published_student_documents.sql','single_step_document_approval.sql','batch_student_management.sql']) {
     try { await db.exec(await readFile(`supabase/tests/${file}`,'utf8')); }
     catch(error) { throw new Error(`${file}: ${error.message}`); }
   }

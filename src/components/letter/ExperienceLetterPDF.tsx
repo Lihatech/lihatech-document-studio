@@ -326,7 +326,7 @@ export default function ExperienceLetterPDF({ letter, settings }: ExperienceLett
             <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>{getPrefixedName(letter.candidateName)}</Text>
             <Text style={{ fontSize: 10, color: '#334155' }}>
               <Text>Emp ID: </Text>
-              <Text style={{ color: '#000000', fontWeight: 'bold' }}>{referenceId}</Text>
+              <Text style={{ color: '#000000', fontWeight: 'bold' }}>{referenceId}{letter.studentId ? '\nStudent ID: '+letter.studentId : ''}</Text>
             </Text>
             <Text style={{ fontSize: 10, color: '#334155' }}>
               <Text>Designation: </Text>

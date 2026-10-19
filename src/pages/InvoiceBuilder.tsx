@@ -1,3 +1,4 @@
+import { showWarning } from '../lib/dialogs';
 import { loadInvoiceDraft, saveInvoiceDraft, errorMessage, getReservedInvoiceNumbers } from '../lib/documentStudio';
 import React, { useState, useEffect } from 'react';
 import {
@@ -60,7 +61,7 @@ export default function InvoiceBuilder({
 
   const handleCreateNewClient = async () => {
     if (!newClientName.trim()) {
-      alert('Client Name is required!');
+      showWarning('Client Name is required!');
       return;
     }
 
@@ -353,17 +354,17 @@ export default function InvoiceBuilder({
   const handleSaveInvoice = async () => {
     // Basic validation
     if (!clientName.trim()) {
-      alert('Client Name is required!');
+      showWarning('Client Name is required!');
       setStep(1);
       return;
     }
     if (items.some(it => !it.serviceName.trim())) {
-      alert('All items must have a Service Name.');
+      showWarning('All items must have a Service Name.');
       setStep(3);
       return;
     }
     if (items.some(it => it.qty <= 0 || it.rate < 0)) {
-      alert('Quantity must be greater than zero and Rate cannot be negative.');
+      showWarning('Quantity must be greater than zero and Rate cannot be negative.');
       setStep(3);
       return;
     }
@@ -403,7 +404,7 @@ export default function InvoiceBuilder({
     // Clear draft if new
     if (!editingInvoice) {
       try { await draftQueue.current; await saveInvoiceDraft(null); }
-      catch (error) { alert(`Invoice saved, but the draft could not be cleared: ${errorMessage(error)}`); }
+      catch (error) { showWarning(`Invoice saved, but the draft could not be cleared: ${errorMessage(error)}`); }
     }
   };
 

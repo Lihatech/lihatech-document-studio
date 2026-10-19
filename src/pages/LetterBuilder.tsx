@@ -1,5 +1,6 @@
+import { showWarning } from '../lib/dialogs';
 import { parseAnnualCompensation } from '../utils/compensation';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Save, 
   Mail, 
@@ -21,6 +22,7 @@ interface LetterBuilderProps {
   onSaveLetter: (letter: Letter) => Promise<boolean>;
   editingLetter?: Letter | null;
   requestDraft?: DocumentRequest | null;
+  reviewMode?: boolean;
   navigate: (path: string) => void;
 }
 
@@ -30,17 +32,22 @@ export default function LetterBuilder({
   onSaveLetter,
   editingLetter = null,
   requestDraft = null,
+  reviewMode = false,
   navigate
 }: LetterBuilderProps) {
   
   // Selection or Editing State
   const [letterType, setLetterType] = useState<'Internship Offer' | 'Job Offer' | 'Experience Certificate' | 'Relieving Letter' | null>(
-    editingLetter ? editingLetter.letterType : null
+    editingLetter ? editingLetter.letterType : requestDraft?.offer_type || null
   );
 
+  const [showDetails,setShowDetails]=useState(false);
+  const [submitting,setSubmitting]=useState(false);
+  const submitRef=useRef(false);
   // Form Fields State
   const [referenceNo, setReferenceNo] = useState('');
   const [candidateName, setCandidateName] = useState('');
+  const [studentId,setStudentId]=useState('');
   const [designation, setDesignation] = useState('');
   const [department, setDepartment] = useState('');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -97,7 +104,7 @@ export default function LetterBuilder({
   );
 
   // Active Tab for form vs preview (for small screens)
-  const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
+  const [activeTab, setActiveTab] = useState<'form' | 'preview'>(reviewMode?'preview':'form');
 
   // Prefill default templates based on selection
   const initializeDefaults = (type: 'Internship Offer' | 'Job Offer' | 'Experience Certificate' | 'Relieving Letter') => {
@@ -124,6 +131,7 @@ export default function LetterBuilder({
 
   // Load editing letter
   useEffect(() => {
+    setStudentId(requestDraft?.student_code || editingLetter?.studentId || '');
     if (editingLetter) {
       setLetterType(editingLetter.letterType);
       setReferenceNo(editingLetter.referenceNo || '');
@@ -168,8 +176,8 @@ export default function LetterBuilder({
       setCandidateName(requestDraft.candidate_name);
       setDesignation(requestDraft.designation);
       setDepartment(requestDraft.department || requestDraft.student_department || '');
-      setStartDate(requestDraft.start_date || '');
-      setEndDate(requestDraft.end_date || '');
+      setStartDate(requestDraft.requested_start_date || requestDraft.start_date || '');
+      setEndDate(requestDraft.requested_end_date || requestDraft.end_date || '');
       setCollegeName(requestDraft.college_name || '');
       setAddressTo(requestDraft.college_name ? 'college' : 'candidate');
       setDuration(requestDraft.start_date && requestDraft.end_date ? `${Math.round((Date.parse(requestDraft.end_date)-Date.parse(requestDraft.start_date))/86400000)+1} days` : '');
@@ -177,25 +185,30 @@ export default function LetterBuilder({
   }, [editingLetter, settings, requestDraft]);
 
   const handleSave = async () => {
+    if(submitRef.current)return;
+    if(studentId.trim()&&!/^LT-STU-[0-9]+$/.test(studentId.trim())){showWarning('Enter the student ID shown in Batches & students, or leave it empty for a document without a registered student.');return;}
     if (!candidateName.trim()) {
-      alert('Candidate/Employee Name is required!');
+      showWarning('Candidate/Employee Name is required!');
       return;
     }
     if (!designation.trim()) {
-      alert('Designation/Role is required!');
+      showWarning('Designation/Role is required!');
       return;
     }
     if (!department.trim()) {
-      alert('Department/Domain is required!');
+      showWarning('Department/Domain is required!');
       return;
     }
     if (!letterType) return;
-    if (!startDate || !issueDate) { alert('Start date and issue date are required.'); return; }
+    if (!startDate || !issueDate) { showWarning('Start date and issue date are required.'); return; }
     if ((letterType === 'Job Offer' || (letterType === 'Internship Offer' && !noStipend)) && !stipend.trim()) {
-      alert('Enter the agreed compensation, or select no stipend for an unpaid internship.'); return;
+      if(reviewMode){setShowDetails(true);setActiveTab('form');}
+      showWarning('Enter the agreed compensation, or select no stipend for an unpaid internship.'); return;
     }
 
     const savedLetter: Letter = {
+      requestId: requestDraft?.id || editingLetter?.requestId,
+      studentId:studentId.trim()||undefined,
       id: editingLetter ? editingLetter.id : crypto.randomUUID(),
       referenceNo: referenceNo.trim() || undefined,
       letterType,
@@ -203,7 +216,7 @@ export default function LetterBuilder({
       designation,
       department,
       startDate,
-      endDate: (letterType === 'Internship Offer' || letterType === 'Experience Certificate' || letterType === 'Relieving Letter') ? endDate : undefined,
+      endDate: (reviewMode || letterType === 'Internship Offer' || letterType === 'Experience Certificate' || letterType === 'Relieving Letter') ? endDate : undefined,
       companyName,
       issueDate,
       authorizedSignatory,
@@ -238,12 +251,13 @@ export default function LetterBuilder({
       createdAt: editingLetter ? editingLetter.createdAt : new Date().toISOString()
     };
 
-    if (!await onSaveLetter(savedLetter)) return;
-    navigate('/letter/old');
+    submitRef.current=true;setSubmitting(true);
+    try {if(await onSaveLetter(savedLetter)&&!reviewMode)navigate('/letter/old');} finally {submitRef.current=false;setSubmitting(false);}
   };
 
   // Current temporary letter state for preview
   const currentLetter: Letter = {
+    studentId:studentId.trim()||undefined,
     id: editingLetter ? editingLetter.id : 'temp_id',
     referenceNo: referenceNo.trim() || undefined,
     letterType: letterType || 'Internship Offer',
@@ -287,8 +301,7 @@ export default function LetterBuilder({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in py-2" id="letter-builder-workspace">
-      {requestDraft?.kind === 'offer_letter' && <div className="rounded-xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-950"><strong>Preparing a student request for {requestDraft.candidate_name}.</strong> Complete the official offer details, save and share the letter, then mark the request shared in <button type="button" className="font-bold underline" onClick={() => navigate('/document-requests')}>Document requests</button>.</div>}
+    <div className={`space-y-6 animate-fade-in py-2 ${reviewMode?'request-inline-editor':''} ${showDetails?'show-details':''}`} id="letter-builder-workspace">
       
       {/* Top Title Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -296,9 +309,9 @@ export default function LetterBuilder({
           <div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
               <Mail className="h-6 w-6 text-indigo-500" />
-              <span>{editingLetter ? 'Edit letter' : 'Create letter'}</span>
+              <span>{reviewMode ? 'Document preview' : editingLetter ? 'Edit letter' : 'Create letter'}</span>
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p hidden={reviewMode} className="text-xs text-slate-500 dark:text-slate-400">
               {editingLetter ? 'Modify details and regenerate corporate legal letters.' : 'Select a document layout to draft official HR communication.'}
             </p>
           </div>
@@ -307,7 +320,7 @@ export default function LetterBuilder({
         {letterType && (
           <div className="flex items-center space-x-2">
             {/* View Switching Tabs for Mobile */}
-            <div className="flex lg:hidden bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
+            <div hidden={reviewMode} className="flex lg:hidden bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
               <button
                 onClick={() => setActiveTab('form')}
                 className={`px-3 py-1.5 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'form' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500'}`}
@@ -323,16 +336,18 @@ export default function LetterBuilder({
             </div>
 
             <button
-              onClick={handleSave}
+              disabled={submitting}
+          onClick={handleSave}
               className="studio-button studio-button-primary text-sm"
             >
               <Save className="h-4 w-4" />
-              <span>Save letter</span>
+              <span>{submitting?'Sending…':reviewMode?'Approve and send':'Save letter'}</span>
             </button>
           </div>
         )}
       </div>
 
+      {reviewMode&&<button type="button" className="request-detail-toggle" aria-expanded={showDetails} onClick={()=>setShowDetails(!showDetails)}>{showDetails?'Done editing':'Edit document details'}</button>}
       {/* THREE ACTION CARDS SELECTION GRID (Visible when starting new letter and no type is selected yet) */}
       {!letterType && (
         <div className="space-y-6">
@@ -429,10 +444,10 @@ export default function LetterBuilder({
 
       {/* TWO COLUMN INTERACTIVE FORM WORKSPACE */}
       {letterType && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="request-editor-columns grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* LEFT: Configuration Input Form */}
-          <div className={`lg:col-span-5 space-y-6 ${activeTab === 'form' ? 'block' : 'hidden lg:block'}`}>
+          <div className={`request-editor-fields lg:col-span-5 space-y-6 ${activeTab === 'form' ? 'block' : 'hidden lg:block'}`}>
             <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
               
               <div className="flex justify-between items-center border-b border-gray-100 dark:border-slate-800 pb-4">
@@ -490,6 +505,7 @@ export default function LetterBuilder({
                 </div>
 
                 {/* Field: Designation/Role */}
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Student ID (optional)<input value={studentId} readOnly={!!requestDraft} onChange={event=>setStudentId(event.target.value)} placeholder="LT-STU-100001" className="mt-2 block w-full rounded-xl border border-slate-300 bg-transparent px-4 py-2.5 text-sm font-mono"/></label>
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Briefcase className="h-3.5 w-3.5 text-slate-400" />
@@ -1037,7 +1053,7 @@ export default function LetterBuilder({
           </div>
 
           {/* RIGHT: Letterhead document preview */}
-          <div className={`lg:col-span-7 ${activeTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
+          <div className={`request-editor-preview lg:col-span-7 ${activeTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
             <LetterPreview 
               letter={currentLetter}
               settings={settings}

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { documentSections, getDocumentSection, StudioLink } from './DocumentNavigation';
 import type { CompanySettings } from '../../types';
+import NotificationBell, { NotificationBadge } from '../lms/StudentNotifications';
 import companyLogo from '../../../only_logo-removebg-preview.png';
 
 interface NavbarProps {
@@ -34,14 +35,12 @@ const navGroups = [
     { path: '/', label: 'Overview', icon: LayoutDashboard },
   ] },
   { label: 'Learning', items: [
-    { path: '/students', label: 'Students', icon: UsersRound },
-    { path: '/batches', label: 'Batches', icon: Layers3 },
+    { path: '/batches', label: 'Batches & students', icon: UsersRound },
     { path: '/materials', label: 'Materials', icon: BookOpen },
     { path: '/mock-interviews', label: 'Mock interviews', icon: MessagesSquare },
   ] },
   { label: 'Operations', items: [
-    { path: '/document-requests', label: 'Document requests', icon: FileStack },
-    { path: '/documents', label: 'Document Studio', icon: FileStack },
+    { path: '/documents', label: 'Documents', icon: FileStack },
   ] },
   { label: 'Administration', items: [
     { path: '/team', label: 'Admins', icon: ShieldCheck },
@@ -83,7 +82,7 @@ export default function Navbar({ path, navigate, settings, userEmail, darkMode, 
   }, [mobileOpen]);
   const documentSection = getDocumentSection(path);
   const isDocumentPath = Boolean(documentSection);
-  const currentTitle = isDocumentPath ? (path === '/documents' ? 'Document Studio' : `Document Studio / ${documentSection!.label}`) : pageTitles[path] || 'LMS Admin';
+  const currentTitle = isDocumentPath ? (path === '/documents' ? 'Documents' : `Documents / ${documentSection!.label}`) : pageTitles[path] || 'LMS Admin';
 
   const sidebar = (
     <div className="flex h-full min-h-0 flex-col bg-[#f8fbfc] dark:bg-slate-900">
@@ -99,9 +98,9 @@ export default function Navbar({ path, navigate, settings, userEmail, darkMode, 
             <div className="space-y-1">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = path === item.path || (item.path === '/documents' && isDocumentPath) || (item.path === '/' && path === '/lms');
-                return <div key={item.path}><button onClick={() => { navigate(item.path); setMobileOpen(false); }} aria-current={active ? (item.path === path ? 'page' : 'location') : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${active ? 'bg-[#e3f4f5] text-[#075a70] shadow-[inset_3px_0_0_#0b9fa5] dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-[#eaf4f6] hover:text-[#075a70] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}><Icon size={18} className={active ? 'text-[#087f8a] dark:text-cyan-300' : 'text-slate-400'} /><span>{item.label}</span></button>
-                  {item.path === '/documents' && isDocumentPath && <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">{documentSections.filter(section => section.path !== '/documents').map(section => <StudioLink key={section.path} href={section.path} navigate={to => { navigate(to); setMobileOpen(false); }} aria-current={documentSection?.path === section.path ? 'page' : undefined} className={`flex min-h-11 items-center rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${documentSection?.path === section.path ? 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>{section.label}</StudioLink>)}</div>}
+                const active = path === item.path || (item.path === '/batches' && path === '/students') || (item.path === '/documents' && isDocumentPath) || (item.path === '/' && path === '/lms');
+                return <div key={item.path}><button onClick={() => { navigate(item.path); setMobileOpen(false); }} aria-current={active ? (item.path === path ? 'page' : 'location') : undefined} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${active ? 'bg-[#e3f4f5] text-[#075a70] shadow-[inset_3px_0_0_#0b9fa5] dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-[#eaf4f6] hover:text-[#075a70] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}><Icon size={18} className={active ? 'text-[#087f8a] dark:text-cyan-300' : 'text-slate-400'} /><span>{item.label}</span><NotificationBadge path={item.path}/></button>
+                  {item.path === '/documents' && isDocumentPath && <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">{documentSections.filter(section => section.path !== '/documents').map(section => <StudioLink key={section.path} href={section.path} navigate={to => { navigate(to); setMobileOpen(false); }} aria-current={documentSection?.path === section.path ? 'page' : undefined} className={`flex min-h-11 items-center rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${documentSection?.path === section.path ? 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-cyan-300' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>{section.label}<NotificationBadge path={section.path}/></StudioLink>)}</div>}
                 </div>;
               })}
             </div>
@@ -130,6 +129,7 @@ export default function Navbar({ path, navigate, settings, userEmail, darkMode, 
       <button onClick={() => setMobileOpen(true)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden" aria-label="Open navigation"><Menu size={20} /></button>
       <div className="min-w-0"><p className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{currentTitle}</p><p className="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:block">LihaTech learning operations</p></div>
       <div className="ml-auto hidden items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 sm:flex"><ShieldCheck size={15} />Secure admin session</div>
+      <NotificationBell navigate={navigate}/>
     </header>
 
     {mobileOpen && <div ref={dialogRef} className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Admin navigation"><button className="absolute inset-0 h-full w-full bg-slate-950/60" onClick={() => setMobileOpen(false)} aria-label="Close navigation" /><aside className="absolute inset-y-0 left-0 w-[min(20rem,88vw)] shadow-2xl">{sidebar}<button data-close-navigation onClick={() => setMobileOpen(false)} className="absolute right-3 top-4 inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close navigation"><X size={18} /></button></aside></div>}

@@ -8,7 +8,7 @@ import ListFilters from '../../components/lms/ListFilters';
 import { currentEnrollment } from '../../lib/batches';
 import StudentProfileForm, { type StudentProfileValues } from '../../components/lms/StudentProfileForm';
 import StudentDocumentRequests from '../../components/lms/StudentDocumentRequests';
-import StudentNotifications from '../../components/lms/StudentNotifications';
+import StudentNotifications, { NotificationBadge } from '../../components/lms/StudentNotifications';
 import '../../styles/student.css';
 import '../../styles/documentRequests.css';
 
@@ -19,7 +19,7 @@ const navItems = [
   {path:'/student/documents',label:'Documents',icon:FileText},
   {path:'/student/profile',label:'My profile',icon:CircleUserRound},
 ];
-type MaterialViewer = { title: string; loading?: boolean; kind?: 'pdf' | 'image' | 'link' | 'unsupported'; url?: string; blob?: Blob; error?: string };
+type MaterialViewer = { title: string; loading?: boolean; kind?: 'pdf' | 'image' | 'link' | 'unsupported'; url?: string;originalUrl?:string;filename?:string; blob?: Blob; error?: string };
 const PdfMaterialPreview = React.lazy(() => import('../../components/lms/PdfMaterialPreview'));
 // Reuses the LihaTech Learn sidebar, hero, cards and responsive styles from lihatech-lms.
 export default function StudentPortal({path,navigate,onLogout}:{path:string;navigate:(path:string)=>void;onLogout:()=>void}) {
@@ -30,16 +30,18 @@ export default function StudentPortal({path,navigate,onLogout}:{path:string;navi
   const mounted=useRef(true), request=useRef(0);
   const [viewer,setViewer]=useState<MaterialViewer|null>(null);
   const viewerDialog=useRef<HTMLDialogElement>(null), viewerRequest=useRef(0), viewerBlobUrl=useRef<string|null>(null), viewerTrigger=useRef<HTMLButtonElement|null>(null);
+  const viewerRow=useRef<Row|null>(null);
+  useEffect(()=>{if(!viewer)return;const overflow=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=overflow;};},[!!viewer]);
   async function reload() {
     const sequence=++request.current;
     try {const result=await rpc<StudentHome>('lms_student_home');if(mounted.current&&sequence===request.current){setData(result);setError('');}}
-    catch(e){if(mounted.current&&sequence===request.current){setData(null);setError(e instanceof Error?e.message:'Could not load your learning space.');}}
+    catch(e){if(mounted.current&&sequence===request.current){setError(e instanceof Error?e.message:'Could not load your learning space.');}}
   }
   useEffect(()=>{
     mounted.current=true;void reload();
     const timer=window.setInterval(()=>void reload(),30000);
-    const focus=()=>void reload();window.addEventListener('focus',focus);
-    return()=>{mounted.current=false;window.clearInterval(timer);window.removeEventListener('focus',focus);if(viewerBlobUrl.current)URL.revokeObjectURL(viewerBlobUrl.current);};
+    const focus=()=>void reload();window.addEventListener('focus',focus);window.addEventListener('lihatech-notification-open',focus);
+    return()=>{mounted.current=false;window.clearInterval(timer);window.removeEventListener('focus',focus);window.removeEventListener('lihatech-notification-open',focus);if(viewerBlobUrl.current)URL.revokeObjectURL(viewerBlobUrl.current);};
   },[]);
   useEffect(()=>{document.title=`${navItems.find(n=>n.path===path)?.label??'Overview'} | LihaTech Learn`;document.getElementById('student-content')?.focus({preventScroll:true});},[path]);
   async function action(fn:()=>Promise<unknown>,message:string) {
@@ -55,28 +57,31 @@ export default function StudentPortal({path,navigate,onLogout}:{path:string;navi
     if(viewerBlobUrl.current) URL.revokeObjectURL(viewerBlobUrl.current);
     viewerBlobUrl.current=null;
     setViewer(null);
-    viewerTrigger.current?.focus();
+    viewerTrigger.current?.focus({preventScroll:true});
   }
   function openViewerTab() {
     if (!viewer) return;
-    const url=viewer.blob ? URL.createObjectURL(viewer.blob) : viewer.url;
+    const url=viewer.originalUrl || viewer.url || viewerBlobUrl.current;
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
   }
+  function downloadFile(){if(!viewer?.blob||!viewerBlobUrl.current)return;const link=document.createElement('a');link.href=viewerBlobUrl.current;link.download=viewer.filename||viewer.title;viewerDialog.current?.appendChild(link);link.click();link.remove();}
   async function open(row:Row,button:HTMLButtonElement) {
     const sequence=++viewerRequest.current;
     viewerTrigger.current=button;
+    viewerRow.current=row;
+    if(viewerBlobUrl.current)URL.revokeObjectURL(viewerBlobUrl.current);
+    viewerBlobUrl.current=null;
     setViewer({title:row.title,loading:true});
     viewerDialog.current?.showModal();
     try {
       const material=await openMaterial(row.id);
       if(sequence!==viewerRequest.current) return;
-      if(material.url) setViewer({title:row.title,kind:'link',url:materialPreviewUrl(material.url)});
-      else if(material.blob?.type==='application/pdf') setViewer({title:row.title,kind:'pdf',blob:material.blob});
+      if(material.blob)viewerBlobUrl.current=URL.createObjectURL(material.blob);
+      if(material.url) setViewer({title:row.title,kind:'link',url:materialPreviewUrl(material.url),originalUrl:material.url});
+      else if(material.blob?.type==='application/pdf') setViewer({title:row.title,kind:'pdf',blob:material.blob,filename:material.filename});
       else if(material.blob?.type.startsWith('image/')) {
-        const url=URL.createObjectURL(material.blob);
-        viewerBlobUrl.current=url;
-        setViewer({title:row.title,kind:'image',url,blob:material.blob});
-      } else setViewer({title:row.title,kind:'unsupported'});
+        setViewer({title:row.title,kind:'image',url:viewerBlobUrl.current!,blob:material.blob,filename:material.filename});
+      } else setViewer({title:row.title,kind:'unsupported',blob:material.blob,filename:material.filename});
     } catch(e) {
       if(sequence===viewerRequest.current) setViewer({title:row.title,error:e instanceof Error?e.message:'This material could not be opened.'});
     }
@@ -101,10 +106,10 @@ export default function StudentPortal({path,navigate,onLogout}:{path:string;navi
   return <div className="student-portal"><div className="app-shell">
     <a className="student-skip" href="#student-content">Skip to learning content</a>
     <aside className="sidebar"><div className="brand-lockup"><img src="/lihatech-logo-official.png" alt="LihaTech"/><div><strong>LihaTech</strong><span>LEARN</span></div></div><div className="sidebar-label">LEARNING SPACE</div>
-      <nav className="sidebar-nav" aria-label="Student navigation">{navItems.filter(item=>item.path!=='/student/profile').map(({path:p,label,icon:Icon})=><StudioLink key={p} href={p} navigate={navigate} className={`nav-item ${path===p?'active':''}`}><Icon size={18}/><span>{label}</span></StudioLink>)}</nav>
+      <nav className="sidebar-nav" aria-label="Student navigation">{navItems.filter(item=>item.path!=='/student/profile').map(({path:p,label,icon:Icon})=><StudioLink key={p} href={p} navigate={navigate} className={`nav-item ${path===p?'active':''}`}><Icon size={18}/><span>{label}</span><NotificationBadge path={p}/></StudioLink>)}</nav>
       <div className="sidebar-bottom"><StudioLink href="/student/profile" navigate={navigate} className={`student-sidebar-profile ${path==='/student/profile'?'active':''}`}><span className="avatar">{initials}</span><span className="student-sidebar-profile-name"><strong>{student?.profile_completed_at?student.full_name:'Complete your profile'}</strong><small>View your profile</small></span><ChevronRight size={17}/></StudioLink><button className="nav-item student-signout" onClick={onLogout}><LogOut size={17}/>Sign out</button></div>
     </aside>
-    <div className="app-main"><header className="topbar"><strong>LihaTech Learn</strong><StudentNotifications bookings={data?.bookings??[]} navigate={navigate}/></header>
+    <div className="app-main"><header className="topbar"><strong>LihaTech Learn</strong><StudentNotifications navigate={navigate}/></header>
       <nav className="student-mobile-nav" aria-label="Student navigation">{navItems.map(({path:p,label,icon:Icon})=><StudioLink key={p} href={p} navigate={navigate} className={path===p?'active':''}><Icon size={18}/><span>{label}</span></StudioLink>)}</nav>
       <main id="student-content" tabIndex={-1} className="page-content">
         {error && <div role="alert" className="student-error">{error}<button className="outline-button" onClick={reload}>Retry</button></div>}
@@ -131,17 +136,17 @@ export default function StudentPortal({path,navigate,onLogout}:{path:string;navi
           {path==='/student/mocks' && <MockCalendar bookings={bookings} busy={busy}
             loadDay={day=>lmsApi(`/student/mocks/availability?day=${day}`,'GET')}
             loadMonth={month=>lmsApi(`/student/mocks/month?month=${month}`,'GET')}
-            onRequest={startsAt=>action(()=>lmsApi('/student/mocks/request','POST',{starts_at:startsAt}),'Request sent. Admin will review it.')}
+            onRequest={(startsAt,preparedTopics)=>action(()=>lmsApi('/student/mocks/request','POST',{starts_at:startsAt,prepared_topics:preparedTopics}),'Request sent. Admin will review it.')}
             onCancel={booking=>void action(()=>lmsApi(`/student/mocks/${booking.id}/cancel`),booking.status==='requested'?'Request withdrawn.':'Interview cancelled.')}/>}
-          {path==='/student/documents' && student.status==='active' && <StudentDocumentRequests student={student} enrollment={enrollment}/>}
+          {path==='/student/documents' && student.status==='active' && <StudentDocumentRequests student={student} enrollment={enrollment} onProfileSaved={reload}/>}
           {path==='/student/profile' && (editingProfile ? <StudentProfileForm student={student} firstLogin={false} busy={busy} onSave={saveProfile} onCancel={()=>setEditingProfile(false)}/> : <section className="profile-layout"><div className="panel profile-card"><div className="profile-hero"><span className="avatar large">{initials}</span><div><h2>{student.full_name}</h2><p>{student.email}</p><span className="pill blue">{student.status.toUpperCase()} STUDENT</span></div></div><div className="student-profile-summary"><h3>Your details</h3><button className="outline-button" onClick={()=>setEditingProfile(true)}>Edit details</button></div><dl className="student-profile-details"><div><dt>Phone</dt><dd>{student.phone||'Not shared'}</dd></div><div><dt>Address</dt><dd>{student.address||'Not shared'}</dd></div><div><dt>About you</dt><dd>{student.profile_type==='student'?'Student':student.profile_type==='working'?'Professional':'Not shared'}</dd></div>{student.profile_type==='student'&&<><div><dt>College</dt><dd>{student.college_name||'Not shared'}</dd></div><div><dt>Branch / field of study</dt><dd>{student.department||'Not shared'}</dd></div><div><dt>College location</dt><dd>{student.college_location||'Not shared'}</dd></div></>}{student.profile_type==='working'&&<><div><dt>Company</dt><dd>{student.office_name||'Not shared'}</dd></div><div><dt>Position</dt><dd>{student.job_title||'Not shared'}</dd></div><div><dt>Company location</dt><dd>{student.office_location||'Not shared'}</dd></div></>}</dl><h2>Batch access</h2>{selectedEnrollments.map(e=><Enrollment key={e.batch_id} row={e} serverTime={data.server_time}/>)}<button className="outline-button" onClick={onLogout}><LogOut size={18}/>Sign out</button></div><section className="panel"><h2>Need a change?</h2><p>You can update these optional details any time. Contact admin to change your registered email, batch assignment or access dates.</p></section></section>)}
           </>}
         </>}
       </main>
     </div>
     <dialog ref={viewerDialog} className="student-material-dialog" aria-label={viewer?.title??'Learning material'} onClose={viewerClosed}>
-      <div className="student-material-head"><h2>{viewer?.title??'Learning material'}</h2><div className="student-material-head-actions">{viewer?.kind&&viewer.kind!=='unsupported'&&<button className="outline-button" type="button" onClick={openViewerTab}><ExternalLink size={16}/>Open in new tab</button>}<button className="icon-button" type="button" onClick={closeViewer} aria-label="Close material preview"><X size={22}/></button></div></div>
-      {viewer?.loading?<p role="status" className="student-material-message">Opening material…</p>:viewer?.error?<p role="alert" className="student-material-message">{viewer.error}</p>:viewer?.kind==='pdf'&&viewer.blob?<React.Suspense fallback={<p role="status" className="student-material-message">Preparing PDF preview…</p>}><PdfMaterialPreview blob={viewer.blob}/></React.Suspense>:viewer?.kind==='image'?<div className="student-material-image"><img src={viewer.url} alt={viewer.title}/></div>:viewer?.kind==='link'?<><iframe className="student-material-frame" src={viewer.url} title={viewer.title} sandbox="allow-scripts allow-same-origin allow-forms"/><p className="student-material-hint">If this stays blank, the linked site may not allow previews inside the LMS. Ask your admin for a previewable link.</p></>:viewer?.kind==='unsupported'?<p className="student-material-message">This file type cannot be previewed in the browser. Ask your admin for a PDF or previewable Drive link.</p>:null}
+      <div className="student-material-head"><h2>{viewer?.title??'Learning material'}</h2><div className="student-material-head-actions">{viewer?.blob&&<button className="outline-button" type="button" onClick={downloadFile}>Download file</button>}{viewer?.kind&&viewer.kind!=='unsupported'&&<button className="outline-button" type="button" onClick={openViewerTab}><ExternalLink size={16}/>Open in new tab</button>}<button className="icon-button" type="button" onClick={closeViewer} aria-label="Close material preview"><X size={22}/></button></div></div>
+      {viewer?.loading?<p role="status" className="student-material-message">Opening material…</p>:viewer?.error?<div role="alert" className="student-material-message"><p>{viewer.error}</p><button className="outline-button" onClick={()=>{if(viewerRow.current&&viewerTrigger.current)void open(viewerRow.current,viewerTrigger.current);}}>Retry</button></div>:viewer?.kind==='pdf'&&viewer.blob?<React.Suspense fallback={<p role="status" className="student-material-message">Preparing PDF preview…</p>}><PdfMaterialPreview blob={viewer.blob}/></React.Suspense>:viewer?.kind==='image'?<div className="student-material-image"><img src={viewer.url} alt={viewer.title}/></div>:viewer?.kind==='link'?<><iframe className="student-material-frame" src={viewer.url} title={viewer.title} sandbox="allow-scripts allow-same-origin allow-forms"/><p className="student-material-hint">Use Open in new tab if this preview stays blank or asks you to sign in. Access to a restricted Drive link must also be granted by your admin.</p></>:viewer?.kind==='unsupported'?<p className="student-material-message">This file is ready to download. Use Download file to open it in the appropriate app.</p>:null}
     </dialog>
   </div></div>;
 }

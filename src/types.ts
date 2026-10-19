@@ -114,6 +114,8 @@ export interface Invoice {
 }
 
 export interface Certificate {
+  studentId?: string;
+  requestId?: string;
   id: string;
   certificateId: string; // LT-CERT-YYYY-XXXX
   candidateName: string;
@@ -156,6 +158,8 @@ export interface RecentActivity {
 export type LetterType = 'Internship Offer' | 'Job Offer' | 'Experience Certificate' | 'Relieving Letter';
 
 export interface Letter {
+  studentId?: string;
+  requestId?: string;
   id: string;
   referenceNo?: string;
   candidateName: string;

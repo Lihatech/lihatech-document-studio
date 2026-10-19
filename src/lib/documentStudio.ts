@@ -73,6 +73,10 @@ export async function loadStudioData(defaults: StudioData): Promise<StudioData> 
   return result;
 }
 
+export function rememberStudioRecord(record: StudioRecord) {
+  versions.set(key(record.kind,record.record_id),record.version);
+}
+
 export async function saveStudioChanges(previous: StudioData, updates: Partial<StudioData>): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured.');
   const changes = buildStudioChanges(previous, updates);

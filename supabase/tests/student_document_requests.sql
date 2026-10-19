@@ -17,7 +17,7 @@ set local role anon;
 do $$ declare rid uuid; rows jsonb; begin
   perform pg_temp.claims('request-student-a','request-student-a@example.invalid');
   rid := public.lms_request_document(jsonb_build_object('kind','certificate','candidate_name','Student A',
-    'program_name','AI Internship','certificate_type','Internship','student_id',gen_random_uuid()));
+    'program_name','AI Internship','certificate_type','Course Completion','student_id',gen_random_uuid()));
   rows := public.lms_student_document_requests();
   if jsonb_array_length(rows) <> 1 or rows->0->>'id' <> rid::text then raise exception 'Student request was not saved.'; end if;
   begin
@@ -28,11 +28,15 @@ do $$ declare rid uuid; rows jsonb; begin
   perform pg_temp.claims('request-student-b','request-student-b@example.invalid');
   if jsonb_array_length(public.lms_student_document_requests()) <> 0 then raise exception 'Student B can read student A requests.'; end if;
   perform pg_temp.claims('request-admin','request-admin@example.invalid');
-  rows := public.lms_admin_document_requests();
+  select jsonb_agg(value) into rows from jsonb_array_elements(public.lms_admin_document_requests()) where value->>'id'=rid::text;
   if jsonb_array_length(rows) <> 1 or rows->0->>'student_email' <> 'request-student-a@example.invalid' then
     raise exception 'Admin queue is missing the request or accepted a forged student id.';
   end if;
   perform public.lms_review_document_request(rid,'approved','We can prepare this.');
+  perform public.save_document_studio_records(jsonb_build_array(jsonb_build_object('kind','certificate','record_id','request-test-document',
+    'expected_version',0,'archived',false,'data',jsonb_build_object('id','request-test-document','requestId',rid,
+      'certificateId','REQUEST-TEST-CERT','candidateName','Request Student A','programName','AI Internship',
+      'startDate',current_date::text,'endDate',(current_date+1)::text))));
   perform public.lms_review_document_request(rid,'fulfilled','Shared with student.');
   perform pg_temp.claims('request-student-a','request-student-a@example.invalid');
   rows := public.lms_student_document_requests();

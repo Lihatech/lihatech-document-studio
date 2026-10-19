@@ -17,6 +17,24 @@ EVENT_ID = "lms" + BOOKING_ID.replace("-", "")
 
 
 class CalendarTests(unittest.TestCase):
+    def test_events_expand_recurrence_paginate_and_keep_all_day_end_exclusive(self):
+        seen = []
+        def respond(request):
+            if request.url.host == "oauth2.googleapis.com":
+                return httpx.Response(200, json={"access_token": "token"})
+            seen.append(request)
+            if request.url.params.get("pageToken"):
+                return httpx.Response(200, json={"items": [{"id": "free", "summary": "Optional event", "transparency": "transparent", "start": {"dateTime": "2026-10-20T09:00:00+05:30"}, "end": {"dateTime": "2026-10-20T10:00:00+05:30"}}]})
+            return httpx.Response(200, json={"nextPageToken": "page2", "items": [{"id": "all-day", "start": {"date": "2026-10-20"}, "end": {"date": "2026-10-21"}}, {"id": "deleted", "status": "cancelled"}]})
+        with self.client_for(respond):
+            rows = mock_calendar.calendar_events("2026-10-01T00:00:00+05:30", "2026-11-01T00:00:00+05:30")
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(seen[0].url.params["singleEvents"], "true")
+        self.assertEqual(rows[0]["ends_at"], "2026-10-21T00:00:00+05:30")
+        self.assertTrue(rows[0]["all_day"])
+        self.assertTrue(rows[0]["busy"])
+        self.assertFalse(rows[1]["busy"])
+
     def setUp(self):
         mock_calendar._cached_token = None
         self.environment = patch.dict(os.environ, {
@@ -47,13 +65,14 @@ class CalendarTests(unittest.TestCase):
 
         with self.client_for(respond):
             result = mock_calendar.create_interview(BOOKING_ID, "Student", "student@example.com",
-                "2026-10-20T10:00:00+05:30", "2026-10-20T11:00:00+05:30")
+                "2026-10-20T10:00:00+05:30", "2026-10-20T11:00:00+05:30", "SQL joins\nJava <basics> & OOP")
         self.assertEqual(result, (EVENT_ID, "https://meet.google.com/abc-defg-hij"))
         event = next(request for request in seen if request.method == "POST" and request.url.host == "www.googleapis.com")
         self.assertEqual(event.url.params["conferenceDataVersion"], "1")
         self.assertEqual(event.url.params["sendUpdates"], "all")
         self.assertEqual(event.url.path, "/calendar/v3/calendars/primary/events")
         body = json.loads(event.content)
+        self.assertIn("Topics prepared by the student:\nSQL joins\nJava &lt;basics&gt; &amp; OOP", body["description"])
         self.assertEqual(body["id"], EVENT_ID)
         self.assertEqual([guest["email"] for guest in body["attendees"]],
                          ["interviewer@lihatech.com", "student@example.com"])

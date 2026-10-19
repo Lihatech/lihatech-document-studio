@@ -1,3 +1,4 @@
+import { showWarning } from '../lib/dialogs';
 import type { EmployeeProfile } from '../lib/documentStudio';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -157,14 +158,14 @@ export default function PayslipBuilder({
 
   const handleSave = async () => {
     if (!employeeName.trim() || !employeeId.trim() || !monthAndYear.trim()) {
-      alert('Employee name, employee ID, and salary month are required.'); return;
+      showWarning('Employee name, employee ID, and salary month are required.'); return;
     }
     const amounts = [basicSalary, hra, allowances, bonus, pf, professionalTax, deductions];
     if (amounts.some(value => !Number.isFinite(value) || value < 0) || totalDeductions > grossSalary) {
-      alert('Enter valid non-negative salary amounts; deductions cannot exceed gross salary.'); return;
+      showWarning('Enter valid non-negative salary amounts; deductions cannot exceed gross salary.'); return;
     }
     if (daysInMonth < 1 || daysInMonth > 31 || effectiveWorkDays < 0 || effectiveWorkDays > daysInMonth || lop < 0 || lop > daysInMonth) {
-      alert('Check the days in month, effective work days, and loss of pay days.'); return;
+      showWarning('Check the days in month, effective work days, and loss of pay days.'); return;
     }
     const finalName = employeeName.trim();
     const finalId = employeeId.trim();
@@ -269,20 +270,20 @@ export default function PayslipBuilder({
   const handleBulkSave = async () => {
     if (bulkSaving) return;
     if (!employeeName.trim() || !employeeId.trim()) {
-      alert('Employee name and employee ID are required.'); return;
+      showWarning('Employee name and employee ID are required.'); return;
     }
     if (!paymentDate || !months.length) {
-      alert('Choose a payment date and a valid month range of up to 60 months.'); return;
+      showWarning('Choose a payment date and a valid month range of up to 60 months.'); return;
     }
     const amounts = [basicSalary, hra, allowances, bonus, pf, professionalTax, deductions];
     if (amounts.some(value => !Number.isFinite(value) || value < 0) || totalDeductions > grossSalary) {
-      alert('Enter valid non-negative salary amounts; deductions cannot exceed gross salary.'); return;
+      showWarning('Enter valid non-negative salary amounts; deductions cannot exceed gross salary.'); return;
     }
     if (!Number.isInteger(lop) || lop < 0 || months.some(month => lop > month.daysInMonth)) {
-      alert('Loss of pay days cannot exceed the days in any selected month.'); return;
+      showWarning('Loss of pay days cannot exceed the days in any selected month.'); return;
     }
     if (duplicateMonths.length) {
-      alert(`A payslip already exists for ${employeeName.trim()} in ${duplicateMonths[0].monthAndYear}. Edit that payslip or choose another range.`); return;
+      showWarning(`A payslip already exists for ${employeeName.trim()} in ${duplicateMonths[0].monthAndYear}. Edit that payslip or choose another range.`); return;
     }
     const createdAt = new Date().toISOString();
     const rows = months.map(month => ({
@@ -1155,11 +1156,11 @@ export default function PayslipBuilder({
                     type="button"
                     onClick={async () => {
                       if (!editingProfile.employeeName) {
-                        alert("Employee Name is required!");
+                        showWarning("Employee Name is required!");
                         return;
                       }
                       if (!editingProfile.employeeId) {
-                        alert("Employee ID is required!");
+                        showWarning("Employee ID is required!");
                         return;
                       }
 

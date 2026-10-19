@@ -1,3 +1,4 @@
+import { showWarning } from '../lib/dialogs';
 import SavedOptionSelect from '../components/SavedOptionSelect';
 import { getCertificateCategoryOptions } from '../utils/certificateUtils';
 import React, { useState, useRef, useEffect } from 'react';
@@ -258,7 +259,7 @@ export default function BulkCertificateGenerator({
         const rawJson = XLSX.utils.sheet_to_json<any>(worksheet);
 
         if (rawJson.length === 0) {
-          alert('The uploaded file appears to be empty.');
+          showWarning('The uploaded file appears to be empty.');
           return;
         }
 
@@ -288,7 +289,7 @@ export default function BulkCertificateGenerator({
         }).filter(r => r.candidateName.trim().length > 0);
 
         if (mapped.length === 0) {
-          alert('Could not parse any valid student records. Make sure the spreadsheet has a column named "Candidate Name" or "Name".');
+          showWarning('Could not parse any valid student records. Make sure the spreadsheet has a column named "Candidate Name" or "Name".');
           return;
         }
 
@@ -298,7 +299,7 @@ export default function BulkCertificateGenerator({
         setCurrentIndex(-1);
       } catch (err) {
         console.error(err);
-        alert('Failed to parse Excel file. Please ensure it is a valid Excel format.');
+        showWarning('Failed to parse Excel file. Please ensure it is a valid Excel format.');
       }
     };
     reader.readAsArrayBuffer(file);
@@ -325,12 +326,12 @@ export default function BulkCertificateGenerator({
   // Bulk Generator Loop Engine
   const startBulkGeneration = async () => {
     if (students.length === 0) {
-      alert('Please import a list of students first.');
+      showWarning('Please import a list of students first.');
       return;
     }
 
     if (!programName.trim()) {
-      alert('Please provide a valid Program Name.');
+      showWarning('Please provide a valid Program Name.');
       return;
     }
 
@@ -461,7 +462,7 @@ export default function BulkCertificateGenerator({
   const downloadSeparateZip = async () => {
     const completedStudents = students.filter(s => s.status === 'completed' && s.pdfBlob);
     if (completedStudents.length === 0) {
-      alert('No completed certificates found to package.');
+      showWarning('No completed certificates found to package.');
       return;
     }
 
@@ -478,7 +479,7 @@ export default function BulkCertificateGenerator({
       downloadBlob(content, `Certificates_${programName.replace(/\s+/g, '_')}_${Date.now()}.zip`);
     } catch (err: any) {
       console.error(err);
-      alert('Failed to generate ZIP archive: ' + err.message);
+      showWarning('Failed to generate ZIP archive: ' + err.message);
     }
   };
 
