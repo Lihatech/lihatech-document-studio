@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Bell, BookOpen, CalendarDays, ChevronRight, FileText, X } from 'lucide-react';
 import { confirmAction } from '../../lib/dialogs';
+import { studentMaterialsEnabled } from '../../lib/studentFeatures';
 import { displayDate, rpc } from '../../lib/lms';
 import '../../styles/notifications.css';
 
@@ -20,7 +21,7 @@ export function NotificationProvider({role,children}:{role:'admin'|'student';chi
   async function refresh(){
     if(!navigator.onLine){if(alive.current){setLoading(false);setError('You’re offline. Reconnect to see new updates.');}return;}
     const request=++sequence.current;
-    try{const result=await rpc<Feed>('lms_notifications');if(alive.current&&request===sequence.current){setFeed(result);setError('');}}
+    try{const result=await rpc<Feed>('lms_notifications');if(alive.current&&request===sequence.current){setFeed(role==='student'&&!studentMaterialsEnabled?{items:result.items.filter(row=>row.category!=='materials'),counts:{...result.counts,materials:0}}:result);setError('');}}
     catch{if(alive.current&&request===sequence.current)setError('Updates could not load. Please retry.');}
     finally{if(alive.current&&request===sequence.current)setLoading(false);}
   }
@@ -59,7 +60,7 @@ export default function StudentNotifications({navigate}:{navigate:(path:string)=
     <summary aria-label={`Notifications${total?`, ${total} unread`:''}`} title="Notifications"><Bell size={20}/>{total>0&&<span className="portal-notification-badge" aria-hidden="true">{total>99?'99+':total}</span>}</summary>
     <section className="portal-notifications-panel" aria-label="Notification updates">
       <div className="portal-notifications-heading"><h2>Notifications</h2><button type="button" disabled={!total||reading} onClick={()=>void read()}>{reading?'Saving…':'Mark all read'}</button></div>
-      <p className="portal-notifications-caption">Materials, documents and interview updates.</p>
+      <p className="portal-notifications-caption">{role==='student'&&!studentMaterialsEnabled?'Documents and interview updates.':'Materials, documents and interview updates.'}</p>
       <div className="portal-notifications-controls"><button type="button" disabled={reading||!feed.items.some(row=>row.read_at||row.resolved_at)} onClick={()=>void clear(undefined,true)}>Clear read</button><button type="button" disabled={reading||!feed.items.length} onClick={async()=>{if(await confirmAction('Clear your current notifications? Requests, documents and calendar events will not be deleted.','Clear notifications'))void clear();}}>Clear all</button></div>
       {error&&<p className="portal-notifications-error" role="alert">{error} <button type="button" onClick={()=>void refresh()}>Retry</button></p>}
       {loading&&<p role="status">Loading updates…</p>}
