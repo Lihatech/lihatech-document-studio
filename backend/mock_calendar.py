@@ -117,9 +117,10 @@ def calendar_events(starts_at: str, ends_at: str) -> list[dict]:
 
 
 def create_interview(booking_id: str, student_name: str, student_email: str,
-                     starts_at: str, ends_at: str, prepared_topics: str = "") -> tuple[str, str]:
+                     starts_at: str, ends_at: str, prepared_topics: str = "",
+                     event_id: str | None = None) -> tuple[str, str]:
     """Use a deterministic event ID so retrying cannot send duplicate invitations."""
-    event_id = "lms" + UUID(booking_id).hex
+    event_id = event_id or "lms" + UUID(booking_id).hex
     with httpx.Client(timeout=12) as client:
         token = _token(client)
         headers = {"Authorization": f"Bearer {token}"}

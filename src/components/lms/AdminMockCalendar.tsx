@@ -5,7 +5,7 @@ import Modal from '../Modal';
 import '../../styles/adminCalendar.css';
 
 type CalendarEvent={id:string;title:string;starts_at:string;ends_at:string;all_day:boolean;busy:boolean;url?:string};
-type Entry={id:string;title:string;starts_at:string;ends_at:string;kind:string;booking?:Row;event?:CalendarEvent};
+type Entry={id:string;title:string;starts_at:string;ends_at:string;kind:string;booking?:Row;event?:CalendarEvent;proposal?:boolean};
 const todayKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date());
 const dayKey=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 const istDay=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date(value));
@@ -13,14 +13,14 @@ const time=(value:string)=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolka
 const dateLabel=(day:string)=>new Date(day+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
 const overlaps=(a:{starts_at:string;ends_at:string},b:{starts_at:string;ends_at:string})=>Date.parse(a.starts_at)<Date.parse(b.ends_at)&&Date.parse(a.ends_at)>Date.parse(b.starts_at);
 const statusLabel:Record<string,string>={requested:'Awaiting approval',approving:'Creating meeting',booked:'Confirmed',rejected:'Declined',cancelled:'Cancelled',completed:'Completed',no_show:'Missed'};
-export default function AdminMockCalendar({bookings,slots,students,busy,configured,actionError,onApprove,onDecline,onCancel,onDetails,onRefresh}:{
+export default function AdminMockCalendar({bookings,slots,students,busy,configured,actionError,onApprove,onDecline,onApproveReschedule,onDeclineReschedule,onCancel,onReschedule,onDetails,onRefresh}:{
   bookings:Row[];slots:Row[];students:Row[];busy:boolean;configured:boolean;actionError?:string;
-  onApprove:(row:Row)=>void;onDecline:(row:Row)=>void;onCancel:(row:Row)=>void;onDetails:(row:Row)=>void;onRefresh:()=>Promise<void>;
+  onApprove:(row:Row)=>void;onDecline:(row:Row)=>void;onApproveReschedule:(row:Row)=>void;onDeclineReschedule:(row:Row)=>void;onCancel:(row:Row)=>void;onReschedule:(row:Row,startsAt:string)=>void;onDetails:(row:Row)=>void;onRefresh:()=>Promise<void>;
 }){
   const [selected,setSelected]=useState(todayKey),[month,setMonth]=useState(()=>todayKey().slice(0,7));
   const [events,setEvents]=useState<CalendarEvent[]>([]),[loadedMonth,setLoadedMonth]=useState('');
   const [loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
-  const [query,setQuery]=useState(''),[filter,setFilter]=useState('all'),[reviewId,setReviewId]=useState<string|null>(null);
+  const [query,setQuery]=useState(''),[filter,setFilter]=useState('all'),[reviewId,setReviewId]=useState<string|null>(null),[rescheduleId,setRescheduleId]=useState<string|null>(null),[rescheduleStart,setRescheduleStart]=useState('');
   const keyboardFocus=useRef(false);
   useLayoutEffect(()=>{if(keyboardFocus.current){document.querySelector<HTMLButtonElement>(`[data-calendar-day="${selected}"]`)?.focus({preventScroll:true});keyboardFocus.current=false;}},[selected,month]);
   useEffect(()=>{
@@ -31,7 +31,7 @@ export default function AdminMockCalendar({bookings,slots,students,busy,configur
   },[month,refresh,bookings.map(row=>`${row.id}:${row.status}`).join('|')]);
   useEffect(()=>{const update=()=>setRefresh(value=>value+1);const timer=window.setInterval(()=>{if(!document.hidden&&!busy)update();},60000);window.addEventListener('focus',update);return()=>{window.clearInterval(timer);window.removeEventListener('focus',update);};},[busy]);
   const person=(row:Row)=>{const student=students.find(student=>student.id===row.student_id);return student?.profile_completed_at?student.full_name:student?.email||'Student';};
-  const local:Entry[]=bookings.flatMap(row=>{const slot=slots.find(slot=>slot.id===row.slot_id);return slot?[{id:row.id,title:person(row),starts_at:slot.starts_at,ends_at:slot.ends_at,kind:['requested','approving'].includes(row.status)?'request':row.status==='booked'?'confirmed':'history',booking:row}]:[];});
+  const local:Entry[]=bookings.flatMap(row=>{const slot=slots.find(slot=>slot.id===row.slot_id);if(!slot)return [];const current={id:row.id,title:person(row),starts_at:slot.starts_at,ends_at:slot.ends_at,kind:['requested','approving'].includes(row.status)?'request':row.status==='booked'?'confirmed':'history',booking:row};const proposal=row.reschedule_starts_at&&row.reschedule_ends_at?{id:`${row.id}-reschedule`,title:person(row),starts_at:row.reschedule_starts_at,ends_at:row.reschedule_ends_at,kind:'request',booking:row,proposal:true}:null;return proposal?[current,proposal]:[current];});
   const entries:Entry[]=[...local,...(loadedMonth===month?events:[]).filter(event=>!bookings.some(row=>event.id===row.calendar_event_id||event.id==='lms'+row.id.replaceAll('-',''))).map(event=>({...event,kind:'google',event}))];
   const visible=entries.filter(entry=>(filter==='all'||entry.kind===filter)&&`${entry.title} ${entry.booking?.prepared_topics||''} ${entry.starts_at}`.toLowerCase().includes(query.trim().toLowerCase()));
   const range=(day:string)=>({starts_at:day+'T00:00:00+05:30',ends_at:new Date(Date.parse(day+'T00:00:00+05:30')+86400000).toISOString()});
@@ -46,7 +46,7 @@ export default function AdminMockCalendar({bookings,slots,students,busy,configur
   function moveDay(offset:number){const d=new Date(selected+'T12:00:00');d.setDate(d.getDate()+offset);selectDay(dayKey(d));}
   function reviewRequest(entry:Entry){setFilter('all');selectDay(istDay(entry.starts_at));setReviewId(entry.id);}
   async function reload(){setRefresh(value=>value+1);await onRefresh();}
-  const conflicts=(entry:Entry)=>entries.filter(other=>other.id!==entry.id&&other.kind!=='history'&&(other.kind==='confirmed'||other.event?.busy)&&overlaps(entry,other));
+  const conflicts=(entry:Entry)=>entries.filter(other=>other.id!==entry.id&&other.booking?.id!==entry.booking?.id&&other.kind!=='history'&&(other.kind==='confirmed'||other.event?.busy)&&overlaps(entry,other));
   function calendarKey(event:KeyboardEvent<HTMLButtonElement>,date:Date){
     const offsets:Record<string,number>={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7};
     if(!(event.key in offsets))return;
@@ -54,13 +54,15 @@ export default function AdminMockCalendar({bookings,slots,students,busy,configur
     keyboardFocus.current=true;selectDay(key);
   }
   function actions(entry:Entry){const row=entry.booking!;return <div className="admin-calendar-actions">
-    {entry.kind==='request'&&<button className="studio-primary" disabled={busy||loading||!!error||!configured||conflicts(entry).length>0||Date.parse(entry.starts_at)<=Date.now()} onClick={()=>onApprove(row)}>{row.status==='approving'?'Retry approval':'Accept & create Meet'}</button>}
-    {row.status==='requested'&&<button className="lms-danger-button" disabled={busy} onClick={()=>onDecline(row)}>Decline request</button>}
+    {entry.kind==='request'&&<button className="studio-primary" disabled={busy||loading||!!error||!configured||conflicts(entry).length>0||Date.parse(entry.starts_at)<=Date.now()} onClick={()=>entry.proposal?onApproveReschedule(row):onApprove(row)}>{entry.proposal?'Accept reschedule':row.status==='approving'?'Retry approval':'Accept & create Meet'}</button>}
+    {entry.kind==='request'&&<button className="lms-danger-button" disabled={busy} onClick={()=>entry.proposal?onDeclineReschedule(row):onDecline(row)}>{entry.proposal?'Decline reschedule':'Decline request'}</button>}
     <button className="studio-secondary" disabled={busy} onClick={()=>{setReviewId(null);onDetails(row);}}>View details</button>
-    {entry.kind==='confirmed'&&<button className="lms-danger-button" disabled={busy} onClick={()=>onCancel(row)}>Cancel interview</button>}
+    {entry.kind==='confirmed'&&!entry.proposal&&<button className="lms-danger-button" disabled={busy} onClick={()=>onCancel(row)}>Cancel interview</button>}
+    {['request','confirmed'].includes(entry.kind)&&!entry.proposal&&<button className="studio-secondary" disabled={busy} onClick={()=>{setRescheduleId(row.id);setRescheduleStart('');}}>Reschedule</button>}
   </div>;}
   function requestHelp(entry:Entry){return <>
-    {entry.booking?.prepared_topics&&<div className="admin-calendar-topics"><span>TOPICS PREPARED</span><p>{entry.booking.prepared_topics}</p></div>}
+     {entry.proposal&&<p className="admin-calendar-available">Proposed replacement time. The current interview stays scheduled until you accept.</p>}
+     {(entry.proposal?entry.booking?.reschedule_prepared_topics:entry.booking?.prepared_topics)&&<div className="admin-calendar-topics"><span>TOPICS PREPARED</span><p>{entry.proposal?entry.booking?.reschedule_prepared_topics:entry.booking?.prepared_topics}</p></div>}
     {conflicts(entry).length>0&&entry.kind==='request'&&<div className="admin-calendar-conflict"><strong>Calendar conflict.</strong><p>This request overlaps {conflicts(entry).map(event=>`${event.title} (${time(event.starts_at)}–${time(event.ends_at)})`).join(', ')}. Decline the request or resolve the calendar conflict before accepting.</p></div>}
     {entry.kind==='request'&&Date.parse(entry.starts_at)<=Date.now()&&<p className="admin-calendar-conflict">This requested time has passed. You can decline it, but it cannot be accepted.</p>}
     {entry.booking?.calendar_error&&<p className="admin-calendar-conflict">{entry.booking.calendar_error}</p>}
@@ -83,5 +85,6 @@ export default function AdminMockCalendar({bookings,slots,students,busy,configur
       </div><div><h3 className="admin-calendar-column-title"><CalendarDays size={18}/> Google Calendar <span>{dayEntries.filter(entry=>entry.event).length}</span></h3>{!dayEntries.some(entry=>entry.event)&&<p className="admin-calendar-empty">{loading?'Loading calendar events…':error?'Calendar events could not be loaded.':'No other calendar events for this date and filter.'}</p>}{dayEntries.filter(entry=>entry.event).map(entry=><article key={entry.id} className="admin-calendar-google-event"><span className="admin-calendar-external-time">{entry.event!.all_day?'All day':time(entry.starts_at)}</span><div><h3>{entry.title}</h3><p>{entry.event!.all_day?'All-day event':`${time(entry.starts_at)}–${time(entry.ends_at)} IST`} · {entry.event!.busy?'Busy':'Free'}</p>{entry.event!.url&&<a href={entry.event!.url} target="_blank" rel="noopener noreferrer">Open in Google Calendar <ArrowUpRight size={14}/></a>}</div></article>)}</div></div>
     </section>
     {review&&<Modal title="Review interview request" busy={busy} onClose={()=>setReviewId(null)}><div className="admin-calendar admin-calendar-review"><span className="admin-calendar-status request">Awaiting approval</span><h2>{review.title}</h2><p className="admin-calendar-review-email">{students.find(student=>student.id===review.booking!.student_id)?.email}</p><div className="admin-calendar-review-date"><CalendarDays size={22}/><div><strong>{dateLabel(istDay(review.starts_at))}</strong><p>{time(review.starts_at)}–{time(review.ends_at)} IST · 60 minutes</p></div></div>{requestHelp(review)}{!conflicts(review).length&&!loading&&!error&&<p className="admin-calendar-available">No calendar conflicts for this time.</p>}{loading&&<p role="status">Checking the calendar before approval…</p>}{actionError&&<p className="admin-calendar-conflict" role="alert">{actionError}</p>}{actions(review)}<p className="admin-calendar-review-note">Accepting creates the Meet link and sends the calendar invitation to the student.</p></div></Modal>}
+     {rescheduleId&&<Modal title="Reschedule interview" busy={busy} onClose={()=>setRescheduleId(null)}><form className="admin-calendar-review" onSubmit={event=>{event.preventDefault();const row=bookings.find(item=>item.id===rescheduleId);if(row&&rescheduleStart){setRescheduleId(null);onReschedule(row,new Date(rescheduleStart).toISOString());}}}><p>Choose a proposed time. The current booking and Meet invitation will stay active until an admin approves the request.</p><label className="admin-calendar-date-input">New date and time<input type="datetime-local" required value={rescheduleStart} onChange={event=>setRescheduleStart(event.target.value)}/></label><div className="admin-calendar-actions"><button type="button" className="studio-secondary" onClick={()=>setRescheduleId(null)}>Keep current time</button><button type="submit" className="studio-primary" disabled={busy||!rescheduleStart}>Request new time</button></div></form></Modal>}
   </section>;
 }

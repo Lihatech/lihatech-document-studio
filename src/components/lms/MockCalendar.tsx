@@ -23,11 +23,12 @@ type TimeSlot = { starts_at: string; ends_at: string; available: boolean; reason
 type Availability = { date: string; calendar_connected: boolean; hours: TimeSlot[]; busy_periods?: { starts_at: string; ends_at: string }[] };
 type MonthAvailability = { month: string; calendar_connected: boolean; busy_days: string[] };
 
-export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onRequest, onCancel }: {
+export default function MockCalendar({ bookings, busy, loadDay, loadMonth, loadTopics, onRequest, onCancel }: {
   bookings: Row[]; busy: boolean;
-  loadDay: (day: string) => Promise<Availability>;
+  loadDay: (day: string, bookingId?: string) => Promise<Availability>;
   loadMonth: (month: string) => Promise<MonthAvailability>;
-  onRequest: (startsAt: string, preparedTopics: string) => Promise<boolean>;
+  loadTopics: (bookingId: string) => Promise<{ prepared_topics: string }>;
+  onRequest: (startsAt: string, preparedTopics: string, bookingId?: string) => Promise<boolean>;
   onCancel: (booking: Row) => void;
 }) {
   const [month, setMonth] = useState(() => { const today = kolhapurToday(); return new Date(today.getFullYear(), today.getMonth(), 1); });
@@ -42,9 +43,26 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
   const [requestError, setRequestError] = useState('');
   const [sentSlot, setSentSlot] = useState<TimeSlot|null>(null);
   const [showSent, setShowSent] = useState(false);
+  const [sentWasReschedule, setSentWasReschedule] = useState(false);
+  const [rescheduling, setReschedulingState] = useState<Row | null>(null);
   const [interviewQuery,setInterviewQuery] = useState(''),[interviewStatus,setInterviewStatus] = useState('all');
   const requesting = useRef(false);
+  const topicRequest = useRef('');
   const confirmDialog = useRef<HTMLDialogElement>(null);
+
+  function setRescheduling(row: Row | null) {
+    setReschedulingState(row);
+    topicRequest.current = row?.id || '';
+    setPreparedTopics(row?.prepared_topics || '');
+    setRequestError('');
+    if (row) {
+      selectDay(new Date(row.starts_at));
+      window.setTimeout(() => document.querySelector<HTMLElement>('.booking-time-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      void loadTopics(row.id).then(result => {
+        if (topicRequest.current === row.id) setPreparedTopics(result.prepared_topics || '');
+      }).catch(() => undefined);
+    }
+  }
 
   const today = kolhapurKey(new Date());
   const lastRequestDay = kolhapurKey(new Date(Date.now() + 60 * 86400000));
@@ -77,10 +95,10 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
     setAvailability(null);
     setDayError('');
     setSelectedStart('');
-    loadDay(selected).then(result => { if (active) setAvailability(result); })
+    loadDay(selected, rescheduling?.id).then(result => { if (active) setAvailability(result); })
       .catch(error => { if (active) setDayError(error instanceof Error ? error.message : 'Could not load times.'); });
     return () => { active = false; };
-  }, [selected, refresh, bookingKey]);
+  }, [selected, refresh, bookingKey, rescheduling?.id]);
 
   useEffect(() => {
     let active = true;
@@ -111,11 +129,13 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
     setRequestError('');
     try {
       const requestedSlot=chosen;
-      if (await onRequest(requestedSlot.starts_at, preparedTopics.trim())) {
+      if (await onRequest(requestedSlot.starts_at, preparedTopics.trim(), rescheduling?.id)) {
+        setSentWasReschedule(!!rescheduling);
         setSentSlot(requestedSlot);
         setShowSent(true);
         confirmDialog.current?.close();
         setPreparedTopics('');
+        setRescheduling(null);
         setRefresh(value => value + 1);
       } else setRequestError('Could not send your request. Check your connection and the page message, then try again.');
     } catch (error) {
@@ -131,7 +151,8 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
       <div className="booking-steps" aria-label="Booking steps"><span><b>1</b> Pick a date</span><span><b>2</b> Choose a time</span><span><b>3</b> Get confirmation</span></div>
     </header>
 
-    {showSent&&sentSlot&&<div className="booking-sent" role="status"><Check size={22}/><div><strong>Interview request sent</strong><p>{dateLabel(kolhapurKey(new Date(sentSlot.starts_at)))} · {time(sentSlot.starts_at)}–{time(sentSlot.ends_at)}. Your request has been received. Your slot is gray while awaiting approval and turns green when confirmed.</p></div><button type="button" aria-label="Dismiss request confirmation" onClick={()=>setShowSent(false)}>Dismiss</button></div>}
+    {showSent&&sentSlot&&<div className="booking-sent" role="status"><Check size={22}/><div><strong>{sentWasReschedule ? 'Reschedule request sent' : 'Interview request sent'}</strong><p>{dateLabel(kolhapurKey(new Date(sentSlot.starts_at)))} · {time(sentSlot.starts_at)}–{time(sentSlot.ends_at)}. {sentWasReschedule ? 'Your current interview is still scheduled. The new time will be applied only after admin approval.' : 'Your request has been received. Your slot is gray while awaiting approval and turns green when confirmed.'}</p></div><button type="button" aria-label="Dismiss request confirmation" onClick={()=>setShowSent(false)}>Dismiss</button></div>}
+    {rescheduling&&<div className="booking-inline-alert" role="status">Choose a date and time to reschedule. Your current interview stays scheduled until admin approves the new time. <button type="button" onClick={()=>{setRescheduling(null);setPreparedTopics('');}}>Keep current time</button></div>}
     <div className="booking-workspace">
       <div className="booking-left-column">
       <section className="booking-date-panel" aria-label="Choose a date">
@@ -157,7 +178,7 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
         {monthAvailability && !monthAvailability.calendar_connected && <p className="booking-small-status">Calendar sync is not connected yet.</p>}
       </section>
 
-    <section className="booking-upcoming" aria-label="Your upcoming interviews"><div className="booking-upcoming-head"><div><span className="booking-step">YOUR INTERVIEWS</span><h3>Your interviews</h3></div><span>{upcoming.length}</span></div>{upcoming.length>0&&<ListFilters query={interviewQuery} onQuery={setInterviewQuery} placeholder="Search interview date or time" filters={[{label:'Status',value:interviewStatus,onChange:setInterviewStatus,options:[{value:'all',label:'All statuses'},...['requested','approving','booked'].map(value=>({value,label:statusLabel[value]}))]}]}/>} {shownInterviews.length ? <div className="booking-upcoming-list">{shownInterviews.map(row => <article key={row.id} className={`booking-interview ${row.status==='booked'?'is-confirmed':'is-requested'}`}><span className="booking-interview-date"><CalendarDays size={17}/>{dateLabel(kolhapurKey(new Date(row.starts_at)))}</span><strong>{time(row.starts_at)}–{time(row.ends_at)}</strong><span className="booking-interview-status">{statusLabel[row.status] ?? row.status}</span><div>{row.status === 'booked' && row.meeting_url && <a href={row.meeting_url} target="_blank" rel="noopener noreferrer"><Video size={16}/> Join Meet</a>}{row.id!=='just-sent'&&['requested', 'booked'].includes(row.status) && <button type="button" disabled={busy} onClick={() => onCancel(row)}>{row.status === 'requested' ? 'Withdraw' : 'Cancel'}</button>}</div></article>)}</div> : <p className="booking-no-upcoming">{upcoming.length?'No interviews match your filters.':'You have no upcoming interviews. Choose a date above to get started.'}</p>}</section>
+    <section className="booking-upcoming" aria-label="Your upcoming interviews"><div className="booking-upcoming-head"><div><span className="booking-step">YOUR INTERVIEWS</span><h3>Your interviews</h3></div><span>{upcoming.length}</span></div>{upcoming.length>0&&<ListFilters query={interviewQuery} onQuery={setInterviewQuery} placeholder="Search interview date or time" filters={[{label:'Status',value:interviewStatus,onChange:setInterviewStatus,options:[{value:'all',label:'All statuses'},...['requested','approving','booked'].map(value=>({value,label:statusLabel[value]}))]}]}/>} {shownInterviews.length ? <div className="booking-upcoming-list">{shownInterviews.map(row => <article key={row.id} className={`booking-interview ${row.status==='booked'?'is-confirmed':'is-requested'}`}><span className="booking-interview-date"><CalendarDays size={17}/>{dateLabel(kolhapurKey(new Date(row.starts_at)))}</span><strong>{time(row.starts_at)}–{time(row.ends_at)}</strong><span className="booking-interview-status">{statusLabel[row.status] ?? row.status}</span><div>{row.status === 'booked' && row.meeting_url && <a href={row.meeting_url} target="_blank" rel="noopener noreferrer"><Video size={16}/> Join Meet</a>}{row.id!=='just-sent'&&['requested', 'booked'].includes(row.status) && <><button type="button" disabled={busy} onClick={() => {setRescheduling(row);setRequestError('');}}>Reschedule</button><button type="button" disabled={busy} onClick={() => onCancel(row)}>{row.status === 'requested' ? 'Withdraw' : 'Cancel'}</button></>}</div></article>)}</div> : <p className="booking-no-upcoming">{upcoming.length?'No interviews match your filters.':'You have no upcoming interviews. Choose a date above to get started.'}</p>}</section>
       </div>
       <section className="booking-time-panel" aria-label="Choose a time">
         <div className="booking-section-head"><div><span className="booking-step">02 / TIME</span><h3>{dateLabel(selected)}</h3><p>Each interview lasts one hour. Times shown in Kolhapur time (IST).</p></div><span className="booking-duration"><Clock3 size={16}/> 60 min</span></div>
@@ -174,7 +195,7 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
             <p className="booking-overlap-hint">Each option is a full one-hour interview. Red options overlap an existing booking, even if they start before it.</p>
             <div className="booking-slot-key"><span><i className="is-open"/> Available</span><span><i className="is-requested"/> Your request</span><span><i className="is-confirmed"/> Confirmed</span><span><i className="is-busy"/> Overlaps a booking</span><span><i className="is-past"/> Outside booking window</span></div>
             <div className="booking-time-grid">{availability.hours.map(slot => {
-              const mine=activeBookings.find(row=>Date.parse(row.starts_at)===Date.parse(slot.starts_at));
+              const mine=activeBookings.find(row=>row.id!==rescheduling?.id&&Date.parse(row.starts_at)===Date.parse(slot.starts_at));
               const overlaps = slot.reason === 'calendar_busy' || slot.reason === 'reserved';
               const label = mine ? mine.status==='booked'?'Your interview · Confirmed':'Your request · Awaiting approval' : slot.available ? 'Available' : overlaps ? 'Overlaps a booking' : 'Unavailable';
               return <button type="button" key={slot.starts_at} disabled={!slot.available||!!mine}
@@ -190,12 +211,12 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, onReq
             {!available.length && <p className="booking-select-hint">No times are open on this date. Choose another day.</p>}
           </> : <div className="booking-no-times"><CalendarDays size={22}/><strong>No interview times on this day</strong><p>Choose another date from the calendar.</p></div>}
         </>}
-        {availability && available.length > 0 && <p className="booking-select-hint">Select a time to review and send your request.</p>}
+        {availability && available.length > 0 && <p className="booking-select-hint">{rescheduling && !selectedStart ? 'Select a date and time to reschedule.' : 'Select a time to review and send your request.'}</p>}
       </section>
     </div>
 
     <dialog ref={confirmDialog} className="booking-confirm" aria-labelledby="booking-confirm-title" onClose={() => setSelectedStart('')}>
-      {chosen && <form onSubmit={event=>{event.preventDefault();void requestSelected();}}><span className="booking-step">03 / REVIEW</span><h3 id="booking-confirm-title">Request this interview?</h3><p>LihaTech will review your request. After approval, you’ll receive the Google Meet invitation.</p><div className="booking-confirm-summary"><span><CalendarDays size={17}/>{dateLabel(selected)}</span><strong><Clock3 size={17}/>{time(chosen.starts_at)}–{time(chosen.ends_at)}</strong></div><label className="booking-topics" htmlFor="prepared-topics">Topics you’ve prepared <span>(required)</span></label><textarea id="prepared-topics" className="booking-topics-input" required maxLength={2000} rows={4} value={preparedTopics} disabled={busy} onChange={event=>setPreparedTopics(event.target.value)} placeholder="For example: Java basics, OOP, SQL joins, React hooks" aria-describedby="prepared-topics-help"/><p id="prepared-topics-help">List the topics you’re ready to discuss. These will be shared with your interviewer in the calendar invitation.</p>{requestError&&<p className="booking-inline-alert" role="alert">{requestError}</p>}<div className="booking-confirm-actions"><button type="button" disabled={busy} onClick={() => {setRequestError('');confirmDialog.current?.close();}}>Choose another time</button><button type="submit" disabled={busy||!preparedTopics.trim()}>{busy ? 'Sending…' : 'Send request'} <ChevronRight size={18}/></button></div></form>}
+      {chosen && <form onSubmit={event=>{event.preventDefault();void requestSelected();}}><span className="booking-step">03 / REVIEW</span><h3 id="booking-confirm-title">{rescheduling ? 'Reschedule this interview?' : 'Request this interview?'}</h3><p>LihaTech will review your request. After approval, you’ll receive the Google Meet invitation.</p><div className="booking-confirm-summary"><span><CalendarDays size={17}/>{dateLabel(selected)}</span><strong><Clock3 size={17}/>{time(chosen.starts_at)}–{time(chosen.ends_at)}</strong></div><label className="booking-topics" htmlFor="prepared-topics">Topics you’ve prepared <span>(required)</span></label><textarea id="prepared-topics" className="booking-topics-input" required maxLength={2000} rows={4} value={preparedTopics} disabled={busy} onChange={event=>setPreparedTopics(event.target.value)} placeholder="For example: Java basics, OOP, SQL joins, React hooks" aria-describedby="prepared-topics-help"/><p id="prepared-topics-help">List the topics you’re ready to discuss. These will be shared with your interviewer in the calendar invitation.</p>{requestError&&<p className="booking-inline-alert" role="alert">{requestError}</p>}<div className="booking-confirm-actions"><button type="button" disabled={busy} onClick={() => {setRequestError('');confirmDialog.current?.close();}}>Choose another time</button><button type="submit" disabled={busy||!preparedTopics.trim()}>{busy ? 'Sending…' : rescheduling ? 'Request new time' : 'Send request'} <ChevronRight size={18}/></button></div></form>}
     </dialog>
 
 

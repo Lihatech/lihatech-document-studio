@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import Response
-from uuid import UUID
+from uuid import UUID, uuid4
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from supabase import Client, create_client
 if __package__:
@@ -237,7 +237,7 @@ def download_student_material(
 def require_active_student(user: Annotated[dict, Depends(verify_firebase_user)]) -> dict:
     if user.get("email_verified") is not True:
         raise HTTPException(status_code=403, detail="A verified Google account is required.")
-    rows = (supabase.table("students").select("id,email,status,firebase_uid")
+    rows = (supabase.table("students").select("id,email,status,firebase_uid,full_name")
             .eq("firebase_uid", user["uid"]).limit(1).execute().data)
     if not rows or rows[0]["status"] != "active":
         raise HTTPException(status_code=403, detail="Active student access is required.")
@@ -257,6 +257,16 @@ class MockRequestInput(BaseModel):
         return value
 
 
+class MockRescheduleInput(BaseModel):
+    starts_at: datetime
+    prepared_topics: str = ""
+
+    @field_validator("prepared_topics")
+    @classmethod
+    def clean_topics(cls, value: str) -> str:
+        return value.strip()
+
+
 MOCK_ZONE = timezone(timedelta(hours=5, minutes=30), 'Asia/Kolkata')
 
 
@@ -268,7 +278,7 @@ def mock_hours() -> tuple[int, int]:
     return first, last
 
 
-def mock_day_availability(day: date) -> dict:
+def mock_day_availability(day: date, exclude_booking_id: UUID | None = None, ignore_calendar_event_id: str | None = None) -> dict:
     first, last = mock_hours()
     start = datetime(day.year, day.month, day.day, tzinfo=MOCK_ZONE)
     end = start + timedelta(days=1)
@@ -279,12 +289,17 @@ def mock_day_availability(day: date) -> dict:
             .select("id,batch_id,starts_at,ends_at,booking_deadline,status")
             .lt("starts_at", end.isoformat()).gt("ends_at", start.isoformat()).execute().data)
     slot_ids = [row["id"] for row in rows]
-    reservations = (supabase.table("mock_interview_bookings").select("slot_id,status")
+    reservations = (supabase.table("mock_interview_bookings").select("id,slot_id,status")
                     .in_("slot_id", slot_ids).in_("status", ["requested", "approving", "booked", "completed", "no_show"])
                     .execute().data) if slot_ids else []
-    reserved = {row["slot_id"] for row in reservations}
+    excluded_slot_ids = {row["slot_id"] for row in reservations if exclude_booking_id and row["id"] == str(exclude_booking_id)}
+    reserved = {row["slot_id"] for row in reservations if not exclude_booking_id or row["id"] != str(exclude_booking_id)}
     try:
-        calendar_busy = mock_calendar.busy_periods(start.isoformat(), end.isoformat()) if mock_calendar.configured() and end > now else []
+        if mock_calendar.configured() and end > now:
+            calendar_busy = [(event["starts_at"], event["ends_at"]) for event in mock_calendar.calendar_events(start.isoformat(), end.isoformat())
+                             if event["busy"] and event["id"] != ignore_calendar_event_id]
+        else:
+            calendar_busy = []
     except mock_calendar.CalendarError as error:
         raise HTTPException(status_code=502, detail=str(error)) from None
 
@@ -295,7 +310,7 @@ def mock_day_availability(day: date) -> dict:
     for minute in range(first * 60, (last - 1) * 60 + 1, 15):
         begins = start + timedelta(minutes=minute)
         finishes = begins + timedelta(hours=1)
-        slot_conflict = any(overlaps(begins, finishes, row["starts_at"], row["ends_at"])
+        slot_conflict = any(row["id"] not in excluded_slot_ids and overlaps(begins, finishes, row["starts_at"], row["ends_at"])
             and (row["status"] == "full" or row["status"] == "open" and (
                 row["id"] in reserved or row["batch_id"] is not None
                 or row["booking_deadline"] is not None and datetime.fromisoformat(row["booking_deadline"].replace("Z", "+00:00")) <= now
@@ -350,7 +365,14 @@ def student_mock_month(month: str, _student: Annotated[dict, Depends(require_act
 
 
 @app.get("/api/student/mocks/availability")
-def student_mock_availability(day: date, _student: Annotated[dict, Depends(require_active_student)]) -> dict:
+def student_mock_availability(day: date, student: Annotated[dict, Depends(require_active_student)],
+                              exclude_booking_id: UUID | None = None) -> dict:
+    if exclude_booking_id:
+        owns = (supabase.table("mock_interview_bookings").select("id,calendar_event_id")
+                .eq("id", str(exclude_booking_id)).eq("student_id", student["id"]).limit(1).execute().data)
+        if not owns:
+            raise HTTPException(status_code=403, detail="You can only reschedule your own interview.")
+        return mock_day_availability(day, exclude_booking_id, owns[0].get("calendar_event_id"))
     return mock_day_availability(day)
 
 
@@ -385,10 +407,50 @@ def request_student_mock(body: MockRequestInput, student: Annotated[dict, Depend
     return {"id": booking_id, "status": "requested"}
 
 
+def _validate_mock_time(starts_at: datetime, booking: dict | None = None) -> dict:
+    if starts_at.tzinfo is None:
+        raise HTTPException(status_code=422, detail="Choose a time with a timezone.")
+    availability = mock_day_availability(starts_at.astimezone(MOCK_ZONE).date(),
+                                         UUID(booking["id"]) if booking else None,
+                                         booking.get("calendar_event_id") if booking else None)
+    hour = next((row for row in availability["hours"] if datetime.fromisoformat(row["starts_at"]) == starts_at), None)
+    if not hour or not hour["available"]:
+        raise HTTPException(status_code=409, detail="This time is no longer available. Refresh the day and choose another.")
+    return hour
+
+
 @app.get("/api/admin/mocks/calendar")
 def mock_calendar_status(_admin: Annotated[dict, Depends(require_manager)]) -> dict:
     return {"configured": mock_calendar.configured(),
             "interviewer_email": os.getenv("MOCK_INTERVIEWER_EMAIL", "")}
+
+
+@app.get("/api/student/mocks/{booking_id}/topics")
+def student_mock_topics(booking_id: UUID, student: Annotated[dict, Depends(require_active_student)]) -> dict:
+    rows = (supabase.table("mock_interview_bookings").select("prepared_topics,status")
+            .eq("id", str(booking_id)).eq("student_id", student["id"]).limit(1).execute().data)
+    if not rows or rows[0]["status"] not in ("requested", "booked"):
+        raise HTTPException(status_code=404, detail="Interview topics were not found.")
+    return {"prepared_topics": rows[0].get("prepared_topics", "")}
+
+
+@app.post("/api/student/mocks/{booking_id}/reschedule")
+def reschedule_student_mock(booking_id: UUID, body: MockRescheduleInput, student: Annotated[dict, Depends(require_active_student)]) -> dict:
+    rows = (supabase.table("mock_interview_bookings").select("id,slot_id,student_id,status,calendar_event_id,meeting_url,prepared_topics")
+            .eq("id", str(booking_id)).eq("student_id", student["id"]).limit(1).execute().data)
+    if not rows or rows[0]["status"] not in ("requested", "booked"):
+        raise HTTPException(status_code=409, detail="This interview cannot be rescheduled.")
+    old = rows[0]
+    hour = _validate_mock_time(body.starts_at, old)
+    topics = body.prepared_topics or old.get("prepared_topics", "")
+    saved = (supabase.table("mock_interview_bookings").update({
+        "reschedule_starts_at": hour["starts_at"],
+        "reschedule_ends_at": hour["ends_at"],
+        "reschedule_prepared_topics": topics,
+    }).eq("id", str(booking_id)).eq("status", old["status"]).select("id").execute().data)
+    if not saved:
+        raise HTTPException(status_code=409, detail="This interview changed. Refresh and try again.")
+    return {"id": str(booking_id), "status": "reschedule_requested", "starts_at": hour["starts_at"]}
 
 
 @app.get("/api/admin/mocks/events")
@@ -457,6 +519,104 @@ def approve_mock(booking_id: UUID, _admin: Annotated[dict, Depends(require_manag
     if not saved:
         raise HTTPException(status_code=409, detail="Calendar invitation was created, but booking changed. Retry approval to reconcile it.")
     return {"status": "booked", "meeting_url": meeting_url}
+
+
+@app.post("/api/admin/mocks/{booking_id}/reschedule")
+def reschedule_admin_mock(booking_id: UUID, body: MockRequestInput, _admin: Annotated[dict, Depends(require_manager)]) -> dict:
+    rows = (supabase.table("mock_interview_bookings").select("id,slot_id,student_id,status,calendar_event_id,meeting_url,prepared_topics")
+            .eq("id", str(booking_id)).limit(1).execute().data)
+    if not rows or rows[0]["status"] not in ("requested", "booked"):
+        raise HTTPException(status_code=409, detail="This interview cannot be rescheduled.")
+    old = rows[0]
+    students = (supabase.table("students").select("firebase_uid").eq("id", old["student_id"]).limit(1).execute().data)
+    if not students:
+        raise HTTPException(status_code=409, detail="The student account is no longer available.")
+    hour = _validate_mock_time(body.starts_at, old)
+    saved = (supabase.table("mock_interview_bookings").update({
+        "reschedule_starts_at": hour["starts_at"], "reschedule_ends_at": hour["ends_at"],
+        "reschedule_prepared_topics": body.prepared_topics or old.get("prepared_topics", ""),
+    }).eq("id", str(booking_id)).eq("status", old["status"]).select("id").execute().data)
+    if not saved:
+        raise HTTPException(status_code=409, detail="This interview changed. Refresh and try again.")
+    return {"id": str(booking_id), "status": "reschedule_requested", "starts_at": hour["starts_at"]}
+
+
+def _reschedule_booking(booking_id: UUID, admin: dict) -> dict:
+    rows = (supabase.table("mock_interview_bookings")
+            .select("id,slot_id,student_id,status,calendar_event_id,meeting_url,prepared_topics,reschedule_starts_at,reschedule_ends_at,reschedule_prepared_topics")
+            .eq("id", str(booking_id)).limit(1).execute().data)
+    if not rows or not rows[0].get("reschedule_starts_at") or not rows[0].get("reschedule_ends_at"):
+        raise HTTPException(status_code=409, detail="There is no pending reschedule for this interview.")
+    booking = rows[0]
+    if booking["status"] != "booked":
+        raise HTTPException(status_code=409, detail="Only a confirmed interview can be rescheduled.")
+    slots = (supabase.table("mock_interview_slots").select("id,starts_at,ends_at,status")
+             .eq("id", booking["slot_id"]).limit(1).execute().data)
+    students = (supabase.table("students").select("full_name,email,status")
+                .eq("id", booking["student_id"]).limit(1).execute().data)
+    if not slots or not students or students[0]["status"] != "active":
+        raise HTTPException(status_code=409, detail="The current interview or student is no longer active.")
+    proposed_start, proposed_end = booking["reschedule_starts_at"], booking["reschedule_ends_at"]
+    _validate_mock_time(datetime.fromisoformat(proposed_start.replace("Z", "+00:00")), booking)
+    if not mock_calendar.configured():
+        raise HTTPException(status_code=503, detail="Connect the LihaTech Google Calendar before approving reschedules.")
+    try:
+        events = mock_calendar.calendar_events(proposed_start, proposed_end)
+    except mock_calendar.CalendarError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None
+    if any(event["busy"] and event["id"] != booking.get("calendar_event_id") for event in events):
+        raise HTTPException(status_code=409, detail="The proposed time now conflicts with Google Calendar.")
+    new_event_id = "lmsr" + uuid4().hex
+    try:
+        new_event_id, meeting_url = mock_calendar.create_interview(
+            str(booking_id), students[0]["full_name"] or "Student", students[0]["email"],
+            proposed_start, proposed_end, booking.get("reschedule_prepared_topics") or booking.get("prepared_topics", ""),
+            event_id=new_event_id)
+    except mock_calendar.CalendarError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None
+    old_slot = slots[0]
+    try:
+        moved = (supabase.table("mock_interview_slots").update({"starts_at": proposed_start, "ends_at": proposed_end, "status": "open"})
+                 .eq("id", booking["slot_id"]).select("id").execute().data)
+        if not moved:
+            raise RuntimeError("The interview slot changed while approving the reschedule.")
+        saved = (supabase.table("mock_interview_bookings").update({
+            "calendar_event_id": new_event_id, "meeting_url": meeting_url, "calendar_error": None,
+            "reschedule_starts_at": None, "reschedule_ends_at": None, "reschedule_prepared_topics": None,
+        }).eq("id", str(booking_id)).eq("status", "booked").select("id").execute().data)
+        if not saved:
+            raise RuntimeError("The booking changed while approving the reschedule.")
+        if booking.get("calendar_event_id"):
+            mock_calendar.delete_interview(booking["calendar_event_id"])
+    except Exception as error:
+        supabase.table("mock_interview_slots").update({"starts_at": old_slot["starts_at"], "ends_at": old_slot["ends_at"], "status": old_slot["status"]}).eq("id", booking["slot_id"]).execute()
+        supabase.table("mock_interview_bookings").update({
+            "calendar_event_id": booking.get("calendar_event_id"), "meeting_url": booking.get("meeting_url"),
+            "reschedule_starts_at": booking.get("reschedule_starts_at"), "reschedule_ends_at": booking.get("reschedule_ends_at"),
+            "reschedule_prepared_topics": booking.get("reschedule_prepared_topics"),
+        }).eq("id", str(booking_id)).eq("status", "booked").execute()
+        try:
+            mock_calendar.delete_interview(new_event_id)
+        except mock_calendar.CalendarError:
+            logging.getLogger(__name__).exception("Could not roll back replacement calendar event")
+        status_code = 502 if isinstance(error, mock_calendar.CalendarError) else 409
+        raise HTTPException(status_code=status_code, detail=str(error)) from None
+    return {"status": "booked", "meeting_url": meeting_url}
+
+
+@app.post("/api/admin/mocks/{booking_id}/reschedule/approve")
+def approve_mock_reschedule(booking_id: UUID, admin: Annotated[dict, Depends(require_manager)]) -> dict:
+    return _reschedule_booking(booking_id, admin)
+
+
+@app.post("/api/admin/mocks/{booking_id}/reschedule/reject")
+def reject_mock_reschedule(booking_id: UUID, _admin: Annotated[dict, Depends(require_manager)]) -> dict:
+    saved = (supabase.table("mock_interview_bookings").update({
+        "reschedule_starts_at": None, "reschedule_ends_at": None, "reschedule_prepared_topics": None,
+    }).eq("id", str(booking_id)).eq("status", "booked").not_.is_("reschedule_starts_at", "null").select("id").execute().data)
+    if not saved:
+        raise HTTPException(status_code=409, detail="There is no pending reschedule for this interview.")
+    return {"status": "reschedule_rejected"}
 
 
 @app.post("/api/admin/mocks/{booking_id}/reject")
