@@ -425,6 +425,22 @@ def mock_calendar_status(_admin: Annotated[dict, Depends(require_manager)]) -> d
             "interviewer_email": os.getenv("MOCK_INTERVIEWER_EMAIL", "")}
 
 
+@app.get("/api/admin/mocks/availability")
+def admin_mock_availability(day: date, _admin: Annotated[dict, Depends(require_manager)],
+                            exclude_booking_id: UUID | None = None) -> dict:
+    """Return the same bookable slot grid used by students for admin reschedules."""
+    ignore_calendar_event_id = None
+    if exclude_booking_id:
+        rows = (supabase.table("mock_interview_bookings").select("id,calendar_event_id,status")
+                .eq("id", str(exclude_booking_id)).limit(1).execute().data)
+        if not rows:
+            raise HTTPException(status_code=404, detail="Interview was not found.")
+        if rows[0].get("status") not in ("requested", "booked"):
+            raise HTTPException(status_code=409, detail="This interview cannot be rescheduled.")
+        ignore_calendar_event_id = rows[0].get("calendar_event_id")
+    return mock_day_availability(day, exclude_booking_id, ignore_calendar_event_id)
+
+
 @app.get("/api/student/mocks/{booking_id}/topics")
 def student_mock_topics(booking_id: UUID, student: Annotated[dict, Depends(require_active_student)]) -> dict:
     rows = (supabase.table("mock_interview_bookings").select("prepared_topics,status")

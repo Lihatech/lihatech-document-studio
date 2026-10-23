@@ -84,6 +84,26 @@
 .admin-calendar-google-event a { display:inline-flex; align-items:center; gap:3px; color:var(--ac-accent); font-size:12px; min-height:36px; }
 .admin-calendar .admin-calendar-empty { margin:16px 0 0; color:var(--ac-muted); font-size:14px; padding:18px; background:var(--ac-soft); border:1px dashed var(--ac-line); border-radius:10px; }
 .admin-calendar-review { display:block; }
+.admin-calendar-quick-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-left:auto; }
+.admin-calendar-quick-button { display:inline-flex; align-items:center; gap:5px; min-height:34px; padding:6px 9px; border:1px solid var(--ac-line); border-radius:7px; color:var(--ac-accent); background:var(--ac-surface); font-size:12px; font-weight:700; text-decoration:none; }
+.admin-calendar-quick-button:hover { border-color:var(--ac-accent); background:var(--ac-selected); }
+.admin-calendar-reschedule-panel { display:grid; gap:14px; margin:0 0 18px; padding:18px; border:2px solid var(--ac-accent); border-radius:12px; background:var(--ac-selected); }
+.admin-calendar-reschedule-panel .admin-calendar-section-head { align-items:flex-start; }
+.admin-calendar-reschedule-panel .admin-calendar-section-head h2 { font-size:19px; }
+.admin-calendar-reschedule-panel .admin-calendar-section-head p { margin:4px 0 0; color:var(--ac-muted); font-size:13px; }
+.admin-calendar-date-input { display:grid; gap:8px; color:var(--ac-muted); font-size:13px; font-weight:650; }
+.admin-calendar-date-input input { min-height:46px; padding:10px 12px; border:1px solid var(--ac-line); border-radius:9px; color:var(--ac-ink); background:var(--ac-surface); }
+.admin-calendar-slot-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:22px 0 10px; color:var(--ac-ink); }
+.admin-calendar-slot-heading span { color:var(--ac-muted); font-size:12px; }
+.admin-calendar-slot-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:300px; overflow:auto; padding:2px; }
+.admin-calendar-slot { position:relative; display:grid; gap:3px; padding:11px 30px 11px 12px; border:1px solid var(--ac-line); border-radius:9px; background:var(--ac-surface); color:var(--ac-ink); text-align:left; }
+.admin-calendar-slot:hover:not(:disabled),.admin-calendar-slot.selected { border-color:var(--ac-accent); background:var(--ac-selected); }
+.admin-calendar-slot.selected { box-shadow:inset 0 0 0 2px var(--ac-accent); }
+.admin-calendar-slot>span { font-size:13px; font-weight:700; }
+.admin-calendar-slot>small { color:#1c6140; font-size:11px; }
+.admin-calendar-slot.unavailable { color:var(--ac-muted); background:var(--ac-soft); }
+.admin-calendar-slot.unavailable small { color:var(--ac-muted); }
+.admin-calendar-slot svg { position:absolute; top:12px; right:10px; color:var(--ac-accent); }
 .admin-calendar.admin-calendar-review h2 { margin:16px 0 4px; font-size:26px; }
 .admin-calendar .admin-calendar-review-email { color:var(--ac-muted); margin:0; font-size:14px; overflow-wrap:anywhere; }
 .admin-calendar-review-date { display:flex; align-items:center; gap:14px; margin:22px 0; padding:18px; border:1px solid var(--ac-line); border-radius:10px; background:var(--ac-soft); }

@@ -33,7 +33,7 @@ export default function LmsAdmin({module:requestedModule='overview',navigate}:{m
   const available=batches.filter(assignableBatch);
   const studentName=(student?:Row)=>student?.profile_completed_at?student.full_name:student?.email||'Student';
   const batchChoice=(current?:string):Field=>({key:'batch_id',label:'Batch',required:true,options:[{value:'',label:'Choose a batch'},...batches.filter(row=>assignableBatch(row)||row.id===current).map(row=>({value:row.id,label:`${row.name} · ${row.code} · ${batchDateLabel(row.start_date)} – ${batchDateLabel(row.end_date)}`}))]});
-  async function action(fn:()=>Promise<unknown>){setBusy(true);setError('');try{await fn();setNotice('Changes saved.');await reload();}catch(e){setError(failure(e));}finally{setBusy(false);}}
+  async function action(fn:()=>Promise<unknown>,message='Changes saved.'){setBusy(true);setError('');try{await fn();setNotice(message);await reload();}catch(e){setError(failure(e));}finally{setBusy(false);}}
   function editBatch(row?:Row){
     setComposer({kind:'batch',title:row?'Edit batch':'Create batch',record:row,initial:row??{start_date:new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})},fields:[field('name','Batch name',undefined,true),field('code','Batch code',undefined,true),field('course_name','Course / programme name',undefined,true),field('start_date','Batch start date','date',true),field('end_date','Batch end date','date',true)]});
   }
