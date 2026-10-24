@@ -4,7 +4,8 @@ import { Document, Page, View, Text, Image, StyleSheet, Font } from '@react-pdf/
 import { Letter, CompanySettings } from '../../types';
 import companyWatermark from '../../../only_logo-removebg-preview.png';
 
-// Register a font that supports the Indian Rupee symbol (₹) and Indian text.
+// Keep the generated PDF currency label ASCII-safe. Some PDF viewers substitute
+// the Rupee glyph with a stray vertical mark that looks like an extra digit.
 Font.register({
   family: 'Roboto',
   fonts: [
@@ -423,7 +424,7 @@ export default function JobOfferLetterPDF({ letter, settings }: JobOfferLetterPD
 
 
   const formatRupees = (val: number) => {
-    return '₹' + Math.round(val).toLocaleString('en-IN');
+    return 'Rs. ' + Math.round(val).toLocaleString('en-IN');
   };
 
   // Watermark Component rendered on every page safely
