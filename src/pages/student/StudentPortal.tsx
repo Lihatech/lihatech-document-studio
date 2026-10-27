@@ -30,6 +30,7 @@ export default function StudentPortal({path:requestedPath,navigate,onLogout}:{pa
   const [error,setError] = useState(''),[actionError,setActionError] = useState(''),[busy,setBusy] = useState(false),[notice,setNotice] = useState('');
   const [materialQuery,setMaterialQuery] = useState(''),[materialKind,setMaterialKind] = useState('all'),[materialAccess,setMaterialAccess] = useState('all');
   const [editingProfile,setEditingProfile] = useState(false);
+  const [interviewDuration,setInterviewDuration] = useState(35);
   const mounted=useRef(true), request=useRef(0);
   const [viewer,setViewer]=useState<MaterialViewer|null>(null);
   const viewerDialog=useRef<HTMLDialogElement>(null), viewerRequest=useRef(0), viewerBlobUrl=useRef<string|null>(null), viewerTrigger=useRef<HTMLButtonElement|null>(null);
@@ -46,6 +47,7 @@ export default function StudentPortal({path:requestedPath,navigate,onLogout}:{pa
     const focus=()=>void reload();window.addEventListener('focus',focus);window.addEventListener('lihatech-notification-open',focus);
     return()=>{mounted.current=false;window.clearInterval(timer);window.removeEventListener('focus',focus);window.removeEventListener('lihatech-notification-open',focus);if(viewerBlobUrl.current)URL.revokeObjectURL(viewerBlobUrl.current);};
   },[]);
+  useEffect(()=>{void rpc<number>('lms_mock_interview_duration').then(value=>{if(Number.isFinite(value)&&value>0)setInterviewDuration(value);}).catch(()=>undefined);},[]);
   useEffect(()=>{document.title=`${navItems.find(n=>n.path===path)?.label??'Overview'} | LihaTech Learn`;document.getElementById('student-content')?.focus({preventScroll:true});},[path]);
   async function action(fn:()=>Promise<unknown>,message:string) {
     setBusy(true);setActionError('');setNotice('');
@@ -120,7 +122,7 @@ export default function StudentPortal({path:requestedPath,navigate,onLogout}:{pa
         {notice && <p role="status" className="student-notice">{notice}</p>}
         {!data&&!error&&<p role="status">Loading your learning space…</p>}
         {data && <>
-          <div className="page-header"><div><p className="eyebrow">LIHATECH LEARN</p><h1>{overview?(student.profile_completed_at?`Welcome, ${student.full_name.split(' ')[0]}.`:'Welcome to LihaTech Learn.'):navItems.find(n=>n.path===path)?.label}</h1><p className="page-intro">{path==='/student/mocks'?'Choose a date and one-hour time slot. Admin will confirm and send the Meet invitation.':path==='/student/learning'?'Materials shared with your batch appear here during its access period.':path==='/student/documents'?'Request a certificate or offer letter and follow its progress here.':overview?studentMaterialsEnabled?'Open your materials and manage your mock interviews in one place.':'Manage interviews, documents and your profile in one place.':'Your registered details and batch access.'}</p></div>
+          <div className="page-header"><div><p className="eyebrow">LIHATECH LEARN</p><h1>{overview?(student.profile_completed_at?`Welcome, ${student.full_name.split(' ')[0]}.`:'Welcome to LihaTech Learn.'):navItems.find(n=>n.path===path)?.label}</h1><p className="page-intro">{path==='/student/mocks'?`Choose a date and ${interviewDuration}-minute time slot. Admin will confirm and send the Meet invitation.`:path==='/student/learning'?'Materials shared with your batch appear here during its access period.':path==='/student/documents'?'Request a certificate or offer letter and follow its progress here.':overview?studentMaterialsEnabled?'Open your materials and manage your mock interviews in one place.':'Manage interviews, documents and your profile in one place.':'Your registered details and batch access.'}</p></div>
             {enrollment&&path==='/student/learning'&&<span className="pill blue">{enrollment.name}</span>}
           </div>
           {!student.profile_completed_at ? <StudentProfileForm student={student} firstLogin busy={busy} onSave={saveProfile}/> : <>
@@ -136,7 +138,7 @@ export default function StudentPortal({path:requestedPath,navigate,onLogout}:{pa
               {m.accessible?<div className="student-card-actions"><button className="primary-button" disabled={busy} onClick={e=>void open(m,e.currentTarget)}>Open material <ChevronRight size={17}/></button></div>:<p className="student-locked"><LockKeyhole size={16}/>{m.available_from&&Date.parse(m.available_from)>Date.parse(data.server_time)?`Available from ${displayDate(m.available_from)}.`:m.expires_at&&Date.parse(m.expires_at)<=Date.parse(data.server_time)?`Access ended ${displayDate(m.expires_at)}.`:'Unavailable for your batch. Contact admin if needed.'}</p>}
             </div></article>)}</div>{!shownMaterials.length&&<p className="panel">No materials match your search or filters.</p>}
           </>}
-          {path==='/student/mocks' && <MockCalendar bookings={bookings} busy={busy}
+          {path==='/student/mocks' && <MockCalendar durationMinutes={interviewDuration} bookings={bookings} busy={busy}
             loadDay={(day,bookingId)=>lmsApi(`/student/mocks/availability?day=${day}${bookingId?`&exclude_booking_id=${bookingId}`:''}`,'GET')}
             loadMonth={month=>lmsApi(`/student/mocks/month?month=${month}`,'GET')}
             loadTopics={bookingId=>lmsApi(`/student/mocks/${bookingId}/topics`,'GET')}

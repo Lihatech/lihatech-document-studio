@@ -23,8 +23,8 @@ type TimeSlot = { starts_at: string; ends_at: string; available: boolean; reason
 type Availability = { date: string; calendar_connected: boolean; hours: TimeSlot[]; busy_periods?: { starts_at: string; ends_at: string }[] };
 type MonthAvailability = { month: string; calendar_connected: boolean; busy_days: string[] };
 
-export default function MockCalendar({ bookings, busy, loadDay, loadMonth, loadTopics, onRequest, onCancel }: {
-  bookings: Row[]; busy: boolean;
+export default function MockCalendar({ bookings, busy, durationMinutes = 35, loadDay, loadMonth, loadTopics, onRequest, onCancel }: {
+  bookings: Row[]; busy: boolean; durationMinutes?: number;
   loadDay: (day: string, bookingId?: string) => Promise<Availability>;
   loadMonth: (month: string) => Promise<MonthAvailability>;
   loadTopics: (bookingId: string) => Promise<{ prepared_topics: string }>;
@@ -147,7 +147,7 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, loadT
 
   return <section className="booking" aria-label="Mock interview booking">
     <header className="booking-hero">
-      <div className="booking-hero-copy"><span className="booking-kicker"><CalendarDays size={15}/> MOCK INTERVIEWS</span><h2>Find a time that works for you.</h2><p>Choose a date and a one-hour slot. LihaTech will confirm your request and send the Meet invitation.</p></div>
+      <div className="booking-hero-copy"><span className="booking-kicker"><CalendarDays size={15}/> MOCK INTERVIEWS</span><h2>Find a time that works for you.</h2><p>Choose a {durationMinutes}-minute slot. LihaTech will confirm your request and send the Meet invitation.</p></div>
       <div className="booking-steps" aria-label="Booking steps"><span><b>1</b> Pick a date</span><span><b>2</b> Choose a time</span><span><b>3</b> Get confirmation</span></div>
     </header>
 
@@ -181,7 +181,7 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, loadT
     <section className="booking-upcoming" aria-label="Your upcoming interviews"><div className="booking-upcoming-head"><div><span className="booking-step">YOUR INTERVIEWS</span><h3>Your interviews</h3></div><span>{upcoming.length}</span></div>{upcoming.length>0&&<ListFilters query={interviewQuery} onQuery={setInterviewQuery} placeholder="Search interview date or time" filters={[{label:'Status',value:interviewStatus,onChange:setInterviewStatus,options:[{value:'all',label:'All statuses'},...['requested','approving','booked'].map(value=>({value,label:statusLabel[value]}))]}]}/>} {shownInterviews.length ? <div className="booking-upcoming-list">{shownInterviews.map(row => <article key={row.id} className={`booking-interview ${row.status==='booked'?'is-confirmed':'is-requested'}`}><span className="booking-interview-date"><CalendarDays size={17}/>{dateLabel(kolhapurKey(new Date(row.starts_at)))}</span><strong>{time(row.starts_at)}–{time(row.ends_at)}</strong><span className="booking-interview-status">{statusLabel[row.status] ?? row.status}</span><div>{row.status === 'booked' && row.meeting_url && <a href={row.meeting_url} target="_blank" rel="noopener noreferrer"><Video size={16}/> Join Meet</a>}{row.id!=='just-sent'&&['requested', 'booked'].includes(row.status) && <><button type="button" disabled={busy} onClick={() => {setRescheduling(row);setRequestError('');}}>Reschedule</button><button type="button" disabled={busy} onClick={() => onCancel(row)}>{row.status === 'requested' ? 'Withdraw' : 'Cancel'}</button></>}</div></article>)}</div> : <p className="booking-no-upcoming">{upcoming.length?'No interviews match your filters.':'You have no upcoming interviews. Choose a date above to get started.'}</p>}</section>
       </div>
       <section className="booking-time-panel" aria-label="Choose a time">
-        <div className="booking-section-head"><div><span className="booking-step">02 / TIME</span><h3>{dateLabel(selected)}</h3><p>Each interview lasts one hour. Times shown in Kolhapur time (IST).</p></div><span className="booking-duration"><Clock3 size={16}/> 60 min</span></div>
+        <div className="booking-section-head"><div><span className="booking-step">02 / TIME</span><h3>{dateLabel(selected)}</h3><p>Each interview lasts {durationMinutes} minutes. Times shown in Kolhapur time (IST).</p></div><span className="booking-duration"><Clock3 size={16}/> {durationMinutes} min</span></div>
         {dayError && <div className="booking-inline-alert" role="alert">{dayError} <button type="button" onClick={() => setRefresh(value => value + 1)}>Retry</button></div>}
         {!availability && !dayError && <p className="booking-loading" role="status">Checking available times…</p>}
         {availability && <>
@@ -192,7 +192,7 @@ export default function MockCalendar({ bookings, busy, loadDay, loadMonth, loadT
           </section>}
           {availability.hours.length > 0 ? <>
             <div className="booking-available-head"><strong>Choose an interview time</strong><span>{available.length} available · starts every 15 minutes</span></div>
-            <p className="booking-overlap-hint">Each option is a full one-hour interview. Red options overlap an existing booking, even if they start before it.</p>
+            <p className="booking-overlap-hint">Each option is a full {durationMinutes}-minute interview. Red options overlap an existing booking, even if they start before it.</p>
             <div className="booking-slot-key"><span><i className="is-open"/> Available</span><span><i className="is-requested"/> Your request</span><span><i className="is-confirmed"/> Confirmed</span><span><i className="is-busy"/> Overlaps a booking</span><span><i className="is-past"/> Outside booking window</span></div>
             <div className="booking-time-grid">{availability.hours.map(slot => {
               const mine=activeBookings.find(row=>row.id!==rescheduling?.id&&Date.parse(row.starts_at)===Date.parse(slot.starts_at));

@@ -41,7 +41,7 @@ export default function Login({ authError = '' }: LoginProps) {
             <div className="mb-7">
               <h2 className="text-xl font-bold text-[#062b4b]">Sign in</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Students: use the Google account with the email registered by your admin. Admins: use your approved LihaTech account.
+                Students: use the Google account with the email registered by your admin.
               </p>
             </div>
 

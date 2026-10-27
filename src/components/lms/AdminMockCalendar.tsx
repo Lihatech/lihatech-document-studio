@@ -15,8 +15,8 @@ const overlaps=(a:{starts_at:string;ends_at:string},b:{starts_at:string;ends_at:
 const statusLabel:Record<string,string>={requested:'Awaiting approval',approving:'Creating meeting',booked:'Confirmed',rejected:'Declined',cancelled:'Cancelled',completed:'Completed',no_show:'Missed'};
 type AvailabilitySlot={starts_at:string;ends_at:string;available:boolean;reason?:string|null};
 type Availability={date:string;calendar_connected:boolean;hours:AvailabilitySlot[];busy_periods?:{starts_at:string;ends_at:string}[]};
-export default function AdminMockCalendar({bookings,slots,students,busy,configured,actionError,onApprove,onDecline,onApproveReschedule,onDeclineReschedule,onCancel,onReschedule,onDetails,onRefresh}:{
-  bookings:Row[];slots:Row[];students:Row[];busy:boolean;configured:boolean;actionError?:string;
+export default function AdminMockCalendar({bookings,slots,students,busy,configured,durationMinutes=35,actionError,onApprove,onDecline,onApproveReschedule,onDeclineReschedule,onCancel,onReschedule,onDetails,onRefresh}:{
+  bookings:Row[];slots:Row[];students:Row[];busy:boolean;configured:boolean;durationMinutes?:number;actionError?:string;
   onApprove:(row:Row)=>void;onDecline:(row:Row)=>void;onApproveReschedule:(row:Row)=>void;onDeclineReschedule:(row:Row)=>void;onCancel:(row:Row)=>void;onReschedule:(row:Row,startsAt:string)=>void;onDetails:(row:Row)=>void;onRefresh:()=>Promise<void>;
 }){
   const [selected,setSelected]=useState(todayKey),[month,setMonth]=useState(()=>todayKey().slice(0,7));
