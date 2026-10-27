@@ -82,6 +82,30 @@ class MockApproval(unittest.TestCase):
         self.create.assert_called_once_with(BOOKING_ID, "Student", "student@example.com",
             "2099-01-01T10:00:00+00:00", "2099-01-01T11:00:00+00:00", "Java basics, SQL joins")
 
+    def test_admin_changes_pending_duration(self):
+        response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/duration", json={"duration_minutes": 35})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["ends_at"], "2099-01-01T10:35:00+00:00")
+        self.database.rpc.assert_called_once_with("lms_admin_set_mock_duration", {
+            "p_booking": BOOKING_ID, "p_minutes": 35, "p_proposal": False,
+        })
+        self.create.assert_not_called()
+
+    def test_duration_rejects_conflicts_invalid_input_and_students(self):
+        for value in (0, 181, 35.5, "35"):
+            self.assertEqual(self.client.post(f"/api/admin/mocks/{BOOKING_ID}/duration", json={"duration_minutes": value}).status_code, 422)
+        self.events.return_value = [{"id": "busy", "busy": True}]
+        self.assertEqual(self.client.post(f"/api/admin/mocks/{BOOKING_ID}/duration", json={"duration_minutes": 60}).status_code, 409)
+        self.database.rpc.assert_not_called()
+        main.app.dependency_overrides.pop(main.require_manager)
+        self.assertEqual(self.client.post(f"/api/admin/mocks/{BOOKING_ID}/duration", json={"duration_minutes": 35}).status_code, 401)
+
+    def test_confirmed_duration_cannot_be_changed_directly(self):
+        self.bookings.rows[0]["status"] = "booked"
+        response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/duration", json={"duration_minutes": 35})
+        self.assertEqual(response.status_code, 409)
+        self.database.rpc.assert_not_called()
+
     def test_calendar_failure_keeps_request_pending(self):
         self.create.side_effect = main.mock_calendar.CalendarError("Meet unavailable")
         response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")
@@ -215,7 +239,7 @@ class StudentRequest(unittest.TestCase):
         self.assertNotIn("bookings", response.json())
         self.assertNotIn("student", str(response.json()))
 
-    def test_quarter_hour_times_keep_one_hour_duration_and_block_overlaps(self):
+    def test_35_minute_slots_block_overlaps_and_offer_exact_booking_end(self):
         day = (datetime.now(main.MOCK_ZONE) + timedelta(days=2)).date().isoformat()
         slot = {"id": SLOT_ID, "batch_id": None, "status": "open", "booking_deadline": None,
                 "starts_at": f"{day}T13:15:00+05:30", "ends_at": f"{day}T14:15:00+05:30"}
@@ -232,13 +256,34 @@ class StudentRequest(unittest.TestCase):
             response = self.client.get(f"/api/student/mocks/availability?day={day}")
         self.assertEqual(response.status_code, 200)
         hours = {row["starts_at"][11:16]: row for row in response.json()["hours"]}
-        self.assertEqual(len(hours), 33)
-        self.assertEqual(hours["13:15"]["ends_at"][11:16], "14:15")
+        self.assertEqual(len(hours), 34)
+        self.assertEqual(hours["13:15"]["ends_at"][11:16], "13:50")
         self.assertTrue(hours["12:15"]["available"])
-        for time in ("12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00"):
+        self.assertTrue(hours["12:30"]["available"])
+        for time in ("12:45", "13:00", "13:15", "13:30", "13:45", "14:00"):
             self.assertFalse(hours[time]["available"])
         self.assertTrue(hours["14:15"]["available"])
-        self.assertEqual(hours["17:00"]["ends_at"][11:16], "18:00")
+        self.assertEqual(hours["17:15"]["ends_at"][11:16], "17:50")
+        self.assertEqual(response.json()["booked_periods"], [{"starts_at": slot["starts_at"], "ends_at": slot["ends_at"]}])
+
+    def test_available_slot_starts_at_exact_end_of_35_minute_booking(self):
+        day = (datetime.now(main.MOCK_ZONE) + timedelta(days=2)).date().isoformat()
+        slot = {"id": SLOT_ID, "batch_id": None, "status": "open", "booking_deadline": None,
+                "starts_at": f"{day}T14:30:00+05:30", "ends_at": f"{day}T15:05:00+05:30"}
+        query = MagicMock()
+        for method in ("select", "lt", "gt", "in_"):
+            getattr(query, method).return_value = query
+        query.execute.side_effect = [type("Result", (), {"data": [slot]})(),
+                                     type("Result", (), {"data": [{"slot_id": SLOT_ID, "status": "booked"}]})()]
+        self.database.table.return_value = query
+        with patch.object(main.mock_calendar, "configured", return_value=False):
+            result = REAL_DAY_AVAILABILITY(datetime.fromisoformat(day).date(), duration_minutes=50)
+        hours = {row["starts_at"][11:16]: row for row in result["hours"]}
+        self.assertFalse(hours["15:00"]["available"])
+        self.assertTrue(hours["15:05"]["available"])
+        self.assertEqual(hours["15:05"]["ends_at"][11:16], "15:55")
+        self.assertEqual(result["duration_minutes"], 50)
+        self.assertEqual(result["booked_periods"], [{"starts_at": slot["starts_at"], "ends_at": slot["ends_at"]}])
 
     def test_google_event_shows_busy_time_without_event_details(self):
         day = (datetime.now(main.MOCK_ZONE) + timedelta(days=2)).date().isoformat()
@@ -251,7 +296,8 @@ class StudentRequest(unittest.TestCase):
         event = (f"{day}T13:00:00+05:30", f"{day}T14:00:00+05:30")
         with patch.object(main, "mock_day_availability", wraps=REAL_DAY_AVAILABILITY), \
              patch.object(main.mock_calendar, "configured", return_value=True), \
-             patch.object(main.mock_calendar, "busy_periods", return_value=[event]):
+             patch.object(main.mock_calendar, "busy_periods", return_value=[event]), \
+             patch.object(main.mock_calendar, "calendar_events", return_value=[{"id": "busy", "busy": True, "starts_at": event[0], "ends_at": event[1]}]):
             response = self.client.get(f"/api/student/mocks/availability?day={day}")
             month = self.client.get(f"/api/student/mocks/month?month={day[:7]}")
         self.assertEqual(response.status_code, 200)

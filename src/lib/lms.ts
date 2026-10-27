@@ -4,7 +4,7 @@ import { lmsFetch, lmsRequest } from './lmsApi';
 export type Row = Record<string, any>;
 export type LmsSession = { role: 'admin' | 'student'; id: string; name: string; email: string; status?: string };
 export type StudentHome = { student: Row; server_time: string; enrollments: Row[]; materials: Row[]; slots: Row[]; bookings: Row[] };
-export const lmsTables = ['students','batches','batch_students','learning_materials','batch_materials','mock_interview_slots','mock_interview_bookings','admin_profiles','staff_invitations','company_settings'] as const;
+export const lmsTables = ['students','batches','batch_students','learning_materials','batch_materials','mock_interview_slots','mock_interview_bookings','admin_profiles','staff_invitations'] as const;
 export type LmsTable = typeof lmsTables[number];
 
 export async function rpc<T>(name: string, args = {}): Promise<T> {
