@@ -29,7 +29,7 @@ export const rendered = {
  invoice:renderToString(<InvoiceBuilder settings={settings} clients={[]} existingInvoices={[]} onSaveInvoice={save} onBack={nothing}/>),
  settings:renderToString(<Settings settings={settings} onSaveSettings={save}/>),
 };`;
-const result=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'cjs',platform:'node',loader:{'.png':'dataurl','.css':'empty'},plugins:[{name:'mock-persistence-for-render',setup(build){build.onLoad({filter:/src[\\/]lib[\\/]documentStudio\.ts$/},()=>({contents:`export const getReservedInvoiceNumbers=()=>[];export const errorMessage=e=>e.message;export const loadInvoiceDraft=async()=>null;export const saveInvoiceDraft=async()=>{};`}));}}]});
+const result=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'cjs',platform:'node',loader:{'.png':'dataurl','.svg':'dataurl','.css':'empty'},plugins:[{name:'mock-persistence-for-render',setup(build){build.onLoad({filter:/src[\\/]lib[\\/]documentStudio\.ts$/},()=>({contents:`export const getReservedInvoiceNumbers=()=>[];export const errorMessage=e=>e.message;export const loadInvoiceDraft=async()=>null;export const saveInvoiceDraft=async()=>{};`}));}}]});
 const output={exports:{}};
 try { new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),output,output.exports); } catch(error) { console.error(error.message); process.exit(1); }
 const {rendered,getDocumentBackLink,getDocumentSection,StudioLink}=output.exports;

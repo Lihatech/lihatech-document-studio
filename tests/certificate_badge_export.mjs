@@ -19,8 +19,9 @@ window.captureBadge=async(template)=>{
  let gold=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]>140&&pixels[i+1]>100&&pixels[i+2]<pixels[i+1]*.8&&pixels[i]>pixels[i+1]*1.05)gold++;
  const {pdfBlob}=await createCertificatePdf(canvas,{includePreview:false});canvas.id='captured-certificate';canvas.style.width='1123px';canvas.style.height='794px';document.getElementById('captured-certificate')?.remove();document.body.appendChild(canvas);
  return {gold,pdfSize:pdfBlob.size};
-};`;
-const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'esm',minify:true,loader:{'.png':'dataurl'},define:{'import.meta.env':'{}'}});
+};
+window.openCorrectionDialog=()=>{const dialog=document.createElement('dialog');dialog.innerHTML='<p>Correction review is open</p>';document.body.appendChild(dialog);dialog.showModal();for(const id of ['royal','emerald']){const sheet=document.getElementById(id);sheet.style.position='absolute';sheet.style.left='-15000px';sheet.style.top='0';}};`;
+const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'esm',minify:true,loader:{'.png':'dataurl','.svg':'dataurl'},define:{'import.meta.env':'{}'}});
 const server=createServer((req,res)=>{if(req.url==='/app.js'){res.setHeader('Content-Type','application/javascript');res.end(bundle.outputFiles[0].contents);}else if(req.url==='/app.css'){res.setHeader('Content-Type','text/css');res.end(css);}else{res.end('<!doctype html><link rel="stylesheet" href="/app.css"><style>body{margin:0;background:white}#root{width:1123px}</style><div id="root"></div><script type="module" src="/app.js"></script>');}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE||'C:/Users/LENOVO/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs').href);
@@ -28,11 +29,16 @@ const browser=await chromium.launch({headless:true,executablePath:process.env.PL
 try{
  const page=await browser.newPage({viewport:{width:1280,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'domcontentloaded'});await page.locator('[data-certificate-badge="seal"]').first().waitFor();
- const ids=await page.locator('[data-certificate-badge] defs [id]').evaluateAll(nodes=>nodes.map(node=>node.id));assert.equal(new Set(ids).size,ids.length,'Each badge instance needs unique gradient IDs');
+ const sources=await page.locator('img[data-certificate-badge]').evaluateAll(nodes=>nodes.map(node=>node.src));assert.equal(sources.length,2);assert.ok(sources.every(src=>src.startsWith('data:image/svg+xml')),'Export uses complete self-contained SVG images');
  for(const template of ['royal','emerald']){
   const result=await page.evaluate(template=>window.captureBadge(template),template);
   assert.ok(result.gold>500,template+' badge gold seal must survive PDF rasterization: '+JSON.stringify(result));assert.ok(result.pdfSize>10000);
   await page.locator('#captured-certificate').screenshot({path:'C:/Windows/Temp/lihatech-'+template+'-badge-export.png'});
  }
- assert.deepEqual(errors,[]);console.log('Royal/emerald badges retain gold seal in real PDF capture; gradient IDs unique across instances. No email sent.');
+ await page.evaluate(()=>window.openCorrectionDialog());
+ for(const template of ['royal','emerald']){
+  const result=await page.evaluate(template=>window.captureBadge(template),template);
+  assert.ok(result.gold>500,template+' hidden export behind correction dialog must retain the badge: '+JSON.stringify(result));
+ }
+ assert.deepEqual(errors,[]);console.log('Royal/emerald badges retain gold seal in normal and hidden modal exports using self-contained images. No email sent.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

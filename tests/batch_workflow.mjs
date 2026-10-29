@@ -15,7 +15,7 @@ const result=await build({stdin:{contents:`
   export const html=renderToStaticMarkup(<StudentDocumentRequests
     student={{full_name:'Official Student',email:'student@example.invalid'}}
     enrollment={{name:'October batch',course_name:'AI Programme',batch_start_date:'2026-10-01',batch_end_date:'2026-10-31',certificate_type:'Course Completion',status:'active'}}/>);
-`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'cjs',platform:'node',loader:{'.css':'empty','.png':'dataurl'},define:{'import.meta.env':'{}'},
+`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'cjs',platform:'node',loader:{'.css':'empty','.png':'dataurl','.svg':'dataurl'},define:{'import.meta.env':'{}'},
 plugins:[{name:'no-auth-or-network',setup(build){build.onLoad({filter:/src[\\/]lib[\\/](supabase|firebase)\.ts$/},()=>({contents:'export const supabase=null; export const auth=null;'}));}}]});
 const module={exports:{}};
 new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);

@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
-import {readFile} from 'node:fs/promises';
+import {readFile,readdir,writeFile} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
 const worker=await readFile('node_modules/pdfjs-dist/build/pdf.worker.min.mjs');
+const fullCapture=process.env.REAL_CERTIFICATE_CAPTURE==='1';
+const studioCss=await readFile('dist/assets/'+(await readdir('dist/assets')).find(name=>/^index-.*\.css$/.test(name)));
 const source=`
 import React from 'react';import{createRoot}from'react-dom/client';
 import PublicCertificateApplications from './src/components/lms/PublicCertificateApplications';
@@ -15,28 +17,37 @@ import './src/styles/documentRequests.css';
 const settings=normalizeSettings({name:'LihaTech',directorName:'Director',certTemplate:'royal'});
 createRoot(document.getElementById('root')).render(<><AppDialogs/><PublicCertificateApplications settings={settings} renderReview={(row,saved,approve)=><CertificateBuilder reviewMode requestDraft={row} editingCertificate={saved} settings={settings} courses={[]} existingCertificates={[]} onSaveCertificate={approve} onSaveCourse={async()=>true} onAddCertificateOption={async(_,name)=>name} onBack={()=>{}} navigate={()=>{}}/>}/></>);
 `;
-const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},outfile:'app.js',bundle:true,write:false,format:'esm',minify:true,define:{'import.meta.env':'{}'},loader:{'.png':'dataurl'},plugins:[{name:'isolated-api-and-pdf',setup(b){
+const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},outfile:'app.js',bundle:true,write:false,format:'esm',minify:true,define:{'import.meta.env':'{}'},loader:{'.png':'dataurl','.svg':'dataurl'},plugins:[{name:'isolated-api-and-pdf',setup(b){
   b.onLoad({filter:/\.png$/},()=>({contents:`export default 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'`,loader:'js'}));
   b.onLoad({filter:/src[\\/]lib[\\/]lmsApi\.ts$/},()=>({contents:`export async function lmsFetch(path,init){const r=await fetch(path,init);if(!r.ok)throw Error('Test API failed');return r;}export async function lmsRequest(path,init){return (await lmsFetch(path,init)).json();}`,loader:'js'}));
   b.onResolve({filter:/pdf\.worker\.min\.mjs\?url$/},()=>({path:'test-pdf-worker',namespace:'test-worker'}));
   b.onLoad({filter:/.*/,namespace:'test-worker'},()=>({contents:`export default '/pdf-worker.mjs'`,loader:'js'}));
-  b.onLoad({filter:/src[\\/]utils[\\/]certificateExport\.ts$/},()=>({contents:`import{jsPDF}from'jspdf';export async function captureCertificate(){return {}};export async function createCertificatePdf(){const pdf=new jsPDF({orientation:'landscape'});pdf.setFillColor(225,240,250);pdf.rect(0,0,297,210,'F');return {pdfBlob:pdf.output('blob')}}`,loader:'js'}));
+  if(!fullCapture)b.onLoad({filter:/src[\\/]utils[\\/]certificateExport\.ts$/},()=>({contents:`import{jsPDF}from'jspdf';export async function captureCertificate(){return {}};export async function createCertificatePdf(){const pdf=new jsPDF({orientation:'landscape'});pdf.setFillColor(225,240,250);pdf.rect(0,0,297,210,'F');return {pdfBlob:pdf.output('blob')}}`,loader:'js'}));
 }}]});
 const row={id:'12345678-9abc-4000-8000-000000000001',full_name:'Example Applicant',course_name:'Python course',certificate_type:'Course Completion',designation:'',requested_start_date:'2026-01-01',requested_end_date:'2026-06-30',status:'pending',admin_note:'',email_status:'not_sent',created_at:'2026-10-29T08:00:00Z',updated_at:'2026-10-29T08:00:00Z',document:null,certificate_applicants:{email:'applicant@example.com',student_code:'LT-CERT-STU-100072'}};
 let approval,correction,pdfReads=0;
 const server=createServer(async(req,res)=>{
   if(req.url==='/pdf-worker.mjs'){res.setHeader('Content-Type','application/javascript');res.end(worker);return;}
+  if(req.url==='/studio.css'){res.setHeader('Content-Type','text/css');res.end(studioCss);return;}
   if(req.url==='/admin/certificate-applications'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify([row]));return;}
   if(req.url?.endsWith('/approve')||req.url?.endsWith('/correct')){let body='';for await(const chunk of req)body+=chunk;const result=JSON.parse(body);if(req.url.endsWith('/correct'))correction=result;else approval=result;row.document=result.document;row.status='approved';row.email_status='sent';res.setHeader('Content-Type','application/json');res.end(JSON.stringify({approved:true,email_sent:true}));return;}
-  if(req.url?.endsWith('/pdf')){pdfReads++;res.setHeader('Content-Type','application/pdf');res.end(Buffer.from(approval.pdf_base64,'base64'));return;}
+  if(req.url?.endsWith('/pdf')){pdfReads++;res.setHeader('Content-Type','application/pdf');res.end(Buffer.from((correction||approval).pdf_base64,'base64'));return;}
   const asset=bundle.outputFiles.find(file=>file.path.replace(/\\/g,'/').endsWith(req.url));
   if(asset){res.setHeader('Content-Type',req.url.endsWith('.css')?'text/css':'application/javascript');res.end(asset.contents);return;}
-  res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><style>body{font-family:system-ui;background:#f4f8fb;margin:0;padding:24px;color:#12364b}main{max-width:1100px;margin:auto}*{box-sizing:border-box}</style><main id="root"></main><script type="module" src="/app.js"></script>');
+  res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/studio.css"><link rel="stylesheet" href="/app.css"><style>body{font-family:system-ui;background:#f4f8fb;margin:0;padding:24px;color:#12364b}main{max-width:1100px;margin:auto}*{box-sizing:border-box}</style><main id="root"></main><script type="module" src="/app.js"></script>');
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE||'C:/Users/LENOVO/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs').href);
 const installedChrome='C:/Users/LENOVO/AppData/Local/Google/Chrome/Application/chrome.exe';
 const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||(existsSync(installedChrome)?installedChrome:'C:/Users/LENOVO/AppData/Local/ms-playwright/chromium-1200/chrome-win64/chrome.exe')});
+async function assertPdfBadge(page){
+ await page.waitForFunction(()=>{
+  const canvas=document.querySelector('.public-certificate-pdf canvas');if(!canvas?.width)return false;
+  const data=canvas.getContext('2d').getImageData(Math.floor(canvas.width*.035),Math.floor(canvas.height*.75),Math.floor(canvas.width*.15),Math.floor(canvas.height*.24)).data;
+  let gold=0;for(let i=0;i<data.length;i+=4)if(data[i]>140&&data[i+1]>100&&data[i+2]<data[i+1]*.8&&data[i]>data[i+1]*1.05)gold++;
+  return gold>200*Math.pow(canvas.width/1100,2);
+ },null,{timeout:30000});
+}
 try{
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -66,6 +77,7 @@ try{
  const desktopSize=await preview.boundingBox();assert.ok(desktopSize.height>=900*.9);assert.ok(desktopSize.width>=1280*.9);
  const canvasSize=await preview.locator('canvas').boundingBox();const containerSize=await preview.locator('.public-certificate-pdf-pages').boundingBox();
  assert.ok(canvasSize.width>containerSize.width*.9,'Certificate must fill the preview width instead of rendering as a thumbnail');
+ if(fullCapture)await assertPdfBadge(page);
  await page.screenshot({path:'C:/Windows/Temp/lihatech-admin-certificate-preview.png',fullPage:true});
  await page.setViewportSize({width:375,height:812});assert.equal(await preview.evaluate(dialog=>dialog.scrollWidth<=dialog.clientWidth),true);
  const downloadEvent=page.waitForEvent('download');await preview.getByRole('button',{name:'Download PDF',exact:true}).click();const download=await downloadEvent;
@@ -82,5 +94,6 @@ try{
  await page.getByRole('button',{name:'Approve and send',exact:true}).first().click();
  await page.getByText('Corrected certificate saved and emailed to the applicant.',{exact:true}).waitFor();
  assert.equal(correction.document.certificateId,'LT-CERT-123456789ABC');assert.equal(correction.document.studentId,'LT-CERT-STU-100072');assert.equal(correction.expected_updated_at,row.updated_at);
- assert.deepEqual(errors,[]);console.log('Public admin: ID approval, cards/filters, real PDF rendering at full preview width, desktop/mobile sizing and original PDF download passed. API/capture mocked; no email sent.');
+ if(fullCapture){await page.setViewportSize({width:1280,height:900});await page.getByRole('button',{name:'Preview certificate',exact:true}).click();await assertPdfBadge(page);const png=await page.locator('.public-certificate-pdf canvas').evaluate(canvas=>canvas.toDataURL());await writeFile('C:/Windows/Temp/lihatech-corrected-certificate-real-pdf.png',Buffer.from(png.split(',')[1],'base64'));}
+ assert.deepEqual(errors,[]);console.log('Public admin: ID approval, cards/filters, real PDF rendering at full preview width, desktop/mobile sizing and original PDF download passed. '+(fullCapture?'Actual approval/correction PDFs contain the gold badge; API mocked.':'API/capture mocked.')+' No email sent.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

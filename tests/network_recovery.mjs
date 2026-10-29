@@ -34,7 +34,7 @@ const mocks={
   };
  `,
 };
-const result=await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'iife',loader:{'.png':'dataurl'},define:{'import.meta.env':'{}'},plugins:[{name:'isolated-access-check',setup(b){
+const result=await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'iife',loader:{'.png':'dataurl','.svg':'dataurl'},define:{'import.meta.env':'{}'},plugins:[{name:'isolated-access-check',setup(b){
  b.onLoad({filter:/src[\\/]lib[\\/](firebase|supabase|documentStudio|lms)\.ts$/},args=>({contents:mocks[args.path.match(/([^\\/]+)\.ts$/)[1]],loader:'js'}));
  b.onLoad({filter:/src[\\/]pages[\\/].*\.tsx$/},args=>args.path.endsWith('Login.tsx')?undefined:{contents:`import React from 'react';export default function Workspace(){return <main><h1>Portal workspace</h1><input aria-label="Unsaved note" defaultValue=""/></main>;}`,loader:'tsx'});
  b.onLoad({filter:/src[\\/]components[\\/]layout[\\/](Navbar|DocumentNavigation)\.tsx$/},()=>({contents:'export default function Navigation(){return null;}export const getDocumentSection=()=>undefined;',loader:'js'}));
