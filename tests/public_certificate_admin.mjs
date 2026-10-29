@@ -14,14 +14,16 @@ createRoot(document.getElementById('root')).render(<><AppDialogs/><PublicCertifi
 `;
 const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},outfile:'app.js',bundle:true,write:false,format:'esm',minify:true,define:{'import.meta.env':'{}'},loader:{'.png':'dataurl'},plugins:[{name:'isolated-api-and-pdf',setup(b){
   b.onLoad({filter:/\.png$/},()=>({contents:`export default 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'`,loader:'js'}));
-  b.onLoad({filter:/src[\\/]lib[\\/]lmsApi\.ts$/},()=>({contents:`export async function lmsRequest(path,init){const r=await fetch(path,init);if(!r.ok)throw Error('Test API failed');return r.json();}`,loader:'js'}));
+  b.onLoad({filter:/src[\\/]lib[\\/]lmsApi\.ts$/},()=>({contents:`export async function lmsFetch(path,init){const r=await fetch(path,init);if(!r.ok)throw Error('Test API failed');return r;}export async function lmsRequest(path,init){return (await lmsFetch(path,init)).json();}`,loader:'js'}));
+  b.onLoad({filter:/src[\\/]components[\\/]lms[\\/]PdfMaterialPreview\.tsx$/},()=>({contents:`import React from 'react';export default function Preview(){return React.createElement('p',null,'Saved PDF preview');}`,loader:'js'}));
   b.onLoad({filter:/src[\\/]utils[\\/]certificateExport\.ts$/},()=>({contents:`export async function captureCertificate(){return {}};export async function createCertificatePdf(){return {pdfBlob:new Blob(['%PDF-1.4 test'],{type:'application/pdf'})}}`,loader:'js'}));
 }}]});
 const row={id:'00000000-0000-4000-8000-000000000001',full_name:'Example Applicant',course_name:'Python course',certificate_type:'Course Completion',designation:'',requested_start_date:'2026-01-01',requested_end_date:'2026-06-30',status:'pending',admin_note:'',email_status:'not_sent',created_at:'2026-10-29T08:00:00Z',document:null,certificate_applicants:{email:'applicant@example.com',student_code:'LT-CERT-STU-100072'}};
-let approval;
+let approval,pdfReads=0;
 const server=createServer(async(req,res)=>{
   if(req.url==='/admin/certificate-applications'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify([row]));return;}
   if(req.url?.endsWith('/approve')){let body='';for await(const chunk of req)body+=chunk;approval=JSON.parse(body);row.status='approved';row.email_status='sent';res.setHeader('Content-Type','application/json');res.end(JSON.stringify({approved:true,email_sent:true}));return;}
+  if(req.url?.endsWith('/pdf')){pdfReads++;res.setHeader('Content-Type','application/pdf');res.end(Buffer.from(approval.pdf_base64,'base64'));return;}
   const asset=bundle.outputFiles.find(file=>file.path.replace(/\\/g,'/').endsWith(req.url));
   if(asset){res.setHeader('Content-Type',req.url.endsWith('.css')?'text/css':'application/javascript');res.end(asset.contents);return;}
   res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><style>body{font-family:system-ui;background:#f4f8fb;margin:0;padding:24px;color:#12364b}main{max-width:1100px;margin:auto}*{box-sizing:border-box}</style><main id="root"></main><script type="module" src="/app.js"></script>');
@@ -48,6 +50,15 @@ try{
  await page.getByRole('button',{name:'Approve and send',exact:true}).first().click();
  await page.getByText('Approved. The certificate PDF was emailed to the applicant.',{exact:true}).waitFor();
  assert.equal(approval.document.studentId,'LT-CERT-STU-100072');assert.equal(approval.document.candidateEmail,'applicant@example.com');assert.ok(approval.pdf_base64);
- await page.getByRole('button',{name:/^Approved/}).click();await page.getByText('Certificate emailed',{exact:true}).waitFor();
- assert.deepEqual(errors,[]);console.log('Public admin: styled buttons, mobile layout, search/status filters, automatic read-only public student ID and actual editor approval passed. API/PDF mocked; no email sent.');
+ assert.equal(await page.getByRole('button',{name:/^Approved/}).getAttribute('aria-pressed'),'true');await page.getByText('Certificate emailed',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Preview certificate',exact:true}).click();
+ const preview=page.getByRole('dialog',{name:'Approved certificate PDF'});await preview.getByText('Saved PDF preview',{exact:true}).waitFor();
+ const downloadEvent=page.waitForEvent('download');await preview.getByRole('button',{name:'Download PDF',exact:true}).click();const download=await downloadEvent;
+ assert.equal(download.suggestedFilename(),'LihaTech-Certificate-LT-CERT-STU-100072.pdf');
+ const parts=[];for await(const chunk of await download.createReadStream())parts.push(chunk);
+ assert.deepEqual(Buffer.concat(parts),Buffer.from(approval.pdf_base64,'base64'));
+ await preview.getByRole('button',{name:'Close certificate preview'}).click();
+ const cardDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download PDF',exact:true}).click();await cardDownload;
+ assert.equal(pdfReads,2);
+ assert.deepEqual(errors,[]);console.log('Public admin: ID approval, cards/filters, protected PDF fetch, preview dialog and original PDF download passed. API/PDF mocked; no email sent.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

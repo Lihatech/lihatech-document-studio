@@ -28,6 +28,7 @@ class CertificateApplicationsTest(unittest.TestCase):
         client = TestClient(app)
         self.assertEqual(client.get('/api/admin/certificate-applications').status_code, 401)
         self.assertEqual(client.post('/api/admin/certificate-applications/00000000-0000-0000-0000-000000000001/send').status_code, 401)
+        self.assertEqual(client.get('/api/admin/certificate-applications/00000000-0000-0000-0000-000000000001/pdf').status_code, 401)
         self.assertEqual(client.post('/api/public/certificate-applications', json={'full_name':'Student','email':'bad','course_name':'Course'}).status_code, 422)
 
     def test_public_submission_needs_no_login_or_batch(self):
@@ -64,6 +65,25 @@ class CertificateApplicationsTest(unittest.TestCase):
             message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
             self.assertEqual(message['To'], 'former@example.com')
             self.assertEqual(next(message.iter_attachments()).get_payload(decode=True), b'%PDF-1.4 test')
+
+    def test_admin_downloads_original_saved_pdf(self):
+        pdf=b'%PDF-1.4 original emailed certificate'
+        db=MagicMock(); app=FastAPI(); register(app,db,lambda:None)
+        result=db.table.return_value.select.return_value.eq.return_value.execute.return_value
+        result.data=[{'status':'approved','pdf_base64':base64.b64encode(pdf).decode()}]
+        client=TestClient(app)
+        path='/api/admin/certificate-applications/00000000-0000-0000-0000-000000000001/pdf'
+        response=client.get(path)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.content,pdf)
+        self.assertEqual(response.headers['content-type'],'application/pdf')
+        self.assertEqual(response.headers['cache-control'],'private, no-store')
+        result.data=[{'status':'pending','pdf_base64':base64.b64encode(pdf).decode()}]
+        self.assertEqual(client.get(path).status_code,404)
+        result.data=[{'status':'approved','pdf_base64':None}]
+        self.assertEqual(client.get(path).status_code,404)
+        result.data=[]
+        self.assertEqual(client.get(path).status_code,404)
 
 
 if __name__ == '__main__':

@@ -1,23 +1,36 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { lmsRequest } from '../../lib/lmsApi';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { lmsFetch, lmsRequest } from '../../lib/lmsApi';
 import type { Certificate, CompanySettings, Letter } from '../../types';
 import type { DocumentRequest } from '../../lib/documentRequests';
 import CertificatePreview from '../certificate/CertificatePreview';
 import { captureCertificate, createCertificatePdf } from '../../utils/certificateExport';
-import { Award, ArrowUpRight, CalendarDays, CheckCircle2, Eye, Mail, RefreshCw, Search, X } from 'lucide-react';
+import { Award, ArrowUpRight, CalendarDays, CheckCircle2, Download, Eye, Mail, RefreshCw, Search, X } from 'lucide-react';
 import '../../styles/publicCertificateAdmin.css';
 
 type Application={id:string;full_name:string;course_name:string;certificate_type:string;designation:string;requested_start_date:string|null;requested_end_date:string|null;status:'pending'|'approved'|'declined';admin_note:string;email_status:string;created_at:string;document:Certificate|null;certificate_applicants:{email:string;student_code:string}};
 type Props={settings:CompanySettings;renderReview:(row:DocumentRequest,saved:Certificate|Letter|null,approve:(document:Certificate|Letter)=>Promise<boolean>)=>React.ReactNode};
 const endpoint='/admin/certificate-applications';
+const PdfMaterialPreview=React.lazy(()=>import('./PdfMaterialPreview'));
 export default function PublicCertificateApplications({settings,renderReview}:Props){
   const [rows,setRows]=useState<Application[]>([]),[selected,setSelected]=useState<Application|null>(null);
   const [query,setQuery]=useState(''),[filter,setFilter]=useState('pending'),[loading,setLoading]=useState(true);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[note,setNote]=useState('');
   const [exporting,setExporting]=useState<{document:Certificate;resolve:(pdf:string)=>void;reject:(e:unknown)=>void}|null>(null);
+  const [viewer,setViewer]=useState<{blob:Blob;name:string;filename:string}|null>(null),[opening,setOpening]=useState<string|null>(null);
   const lock=useRef(false);
   async function reload(){setLoading(true);try{setRows(await lmsRequest<Application[]>(endpoint));setError('');}catch(e){setError(e instanceof Error?e.message:'Could not load public applications.');}finally{setLoading(false);}}
   useEffect(()=>{void reload();},[]);
+  async function openPdf(row:Application,download=false){
+    if(opening)return;setOpening(row.id);setError('');
+    try{
+      const blob=await(await lmsFetch(`${endpoint}/${row.id}/pdf`)).blob();
+      if(blob.type.split(';')[0]!=='application/pdf')throw new Error('The saved certificate PDF could not be loaded.');
+      const filename=`LihaTech-Certificate-${row.certificate_applicants.student_code}.pdf`;
+      if(download){const{saveAs}=await import('file-saver');saveAs(blob,filename);}
+      else setViewer({blob,name:row.full_name,filename});
+    }catch(e){setError(e instanceof Error?e.message:'Could not open the saved certificate.');}
+    finally{setOpening(null);}
+  }
   async function send(row:Application){
     if(lock.current)return;lock.current=true;setBusy(true);setError('');setNotice('');
     try{const result=await lmsRequest<{email_sent:boolean}>(`${endpoint}/${row.id}/send`,{method:'POST'});setNotice(result.email_sent?'Certificate emailed.':'Email failed. Check Hostinger settings and retry.');await reload();}
@@ -30,7 +43,7 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
       const certificate={...document,studentId:selected.certificate_applicants.student_code,candidateEmail:selected.certificate_applicants.email} as Certificate;
       const pdf_base64=await new Promise<string>((resolve,reject)=>setExporting({document:certificate,resolve,reject}));
       const result=await lmsRequest<{email_sent:boolean}>(`${endpoint}/${selected.id}/approve`,{method:'POST',body:JSON.stringify({document:certificate,pdf_base64})});
-      setSelected(null);setNotice(result.email_sent?'Approved. The certificate PDF was emailed to the applicant.':'Approved and saved. Email failed; check Hostinger settings, then use Retry email.');await reload();return true;
+      setSelected(null);setFilter('approved');setNotice(result.email_sent?'Approved. The certificate PDF was emailed to the applicant.':'Approved and saved. Email failed; check Hostinger settings, then use Retry email.');await reload();return true;
     }catch(e){setError(e instanceof Error?e.message:'Could not approve the certificate.');return false;}
     finally{setExporting(null);lock.current=false;setBusy(false);}
   }
@@ -53,6 +66,7 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
       {row.admin_note&&<p className="request-student-note"><strong>Admin note</strong>{row.admin_note}</p>}
       <footer className="public-application-actions"><span><CalendarDays size={15}/>Applied {dateLabel(row.created_at)}</span><div>
         {row.status==='pending'&&<button type="button" className="public-app-button primary" disabled={busy} onClick={()=>{setSelected(row);setNote('');setError('');}}><Eye size={17}/>Review application<ArrowUpRight size={16}/></button>}
+        {row.status==='approved'&&<><button type="button" className="public-app-button secondary" disabled={!!opening||busy} onClick={()=>void openPdf(row)}><Eye size={17}/>{opening===row.id?'Opening…':'Preview certificate'}</button><button type="button" className="public-app-button primary" disabled={!!opening||busy} onClick={()=>void openPdf(row,true)}><Download size={17}/>Download PDF</button></>}
         {row.status==='approved'&&(row.email_status==='sent'?<span className="public-application-delivered"><CheckCircle2 size={17}/>Certificate emailed</span>:<><span className="public-application-email-state">{row.email_status==='sending'?'Email is being sent':'Email not delivered'}</span><button type="button" className="public-app-button secondary" disabled={busy} onClick={()=>void send(row)}><Mail size={17}/>Retry email</button></>)}
       </div></footer>
     </article>)}</div>}
@@ -65,7 +79,16 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
       <div className="request-review-footer"><label>Reason for declining<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)} placeholder="Explain why this application cannot be approved"/></label><button type="button" className="public-app-button danger" disabled={busy||!note.trim()} onClick={()=>void decline()}>Decline application</button></div>
     </ApplicationDialog>}
     {exporting&&<ExportSheet document={exporting.document} settings={settings} ready={exporting.resolve} failed={exporting.reject}/>}
+    {viewer&&<SavedCertificateDialog viewer={viewer} onClose={()=>setViewer(null)}/>}
   </section>;
+}
+function SavedCertificateDialog({viewer,onClose}:{viewer:{blob:Blob;name:string;filename:string};onClose:()=>void}){
+  const ref=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{ref.current?.showModal();},[]);
+  return <dialog ref={ref} className="request-preview-dialog public-certificate-pdf" aria-label="Approved certificate PDF" onClose={onClose}>
+    <header><div><h2>Approved certificate</h2><p>{viewer.name} · Original saved certificate PDF</p></div><div><button type="button" className="public-app-button primary" onClick={async()=>{const{saveAs}=await import('file-saver');saveAs(viewer.blob,viewer.filename);}}><Download size={17}/>Download PDF</button><button type="button" className="public-app-button secondary" aria-label="Close certificate preview" onClick={()=>ref.current?.close()}><X size={17}/>Close</button></div></header>
+    <div className="public-certificate-pdf-pages"><Suspense fallback={<p role="status">Loading certificate preview…</p>}><PdfMaterialPreview blob={viewer.blob}/></Suspense></div>
+  </dialog>;
 }
 function ApplicationDialog({children,busy,onClose}:{children:React.ReactNode;busy:boolean;onClose:()=>void}){
   const ref=useRef<HTMLDialogElement>(null);useEffect(()=>{ref.current?.showModal();},[]);

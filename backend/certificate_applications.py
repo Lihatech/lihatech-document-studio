@@ -11,6 +11,7 @@ from uuid import UUID
 from typing import Literal
 
 from fastapi import Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
@@ -120,6 +121,17 @@ def register(app, db, require_manager):
     @app.get('/api/admin/certificate-applications')
     def listing(_admin=Depends(require_manager)):
         return db.table('certificate_applications').select('id,full_name,course_name,certificate_type,designation,requested_start_date,requested_end_date,status,admin_note,document,email_status,email_sent_at,created_at,updated_at,certificate_applicants(email,student_code)').order('created_at', desc=True).execute().data
+
+    @app.get('/api/admin/certificate-applications/{application_id}/pdf')
+    def certificate_pdf(application_id: UUID, _admin=Depends(require_manager)):
+        row = get_row(application_id)
+        if row['status'] != 'approved' or not row.get('pdf_base64'):
+            raise HTTPException(404, 'An approved certificate PDF is not available for this application.')
+        return Response(content=decode_pdf(row['pdf_base64']), media_type='application/pdf', headers={
+            'Content-Disposition': 'inline; filename="LihaTech-Certificate.pdf"',
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
+        })
 
     @app.post('/api/admin/certificate-applications/{application_id}/approve')
     def approve(application_id: UUID, body: ApprovalInput, _admin=Depends(require_manager)):
