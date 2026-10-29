@@ -56,10 +56,6 @@ The frontend API helper lives in `src/lib/lmsApi.ts` and attaches the current Fi
 
 The team page creates a pending invitation without sending email. Share the app URL yourself. The invitee signs in with Google using the exact invited email; FastAPI verifies the Firebase ID token and atomically creates their active staff profile. Invites expire after seven days. Owners can invite admins or instructors; admins can invite instructors.
 
-### Certificate email delivery
-
-When an admin approves a certificate request, the app calls `/api/send-certificate-email`. Configure the server-only variables from `.env.hostinger.example` in the hosting environment. The endpoint uses Hostinger SMTP (`smtp.hostinger.com`, SSL/TLS port `465`) and sends from the configured `info@...` mailbox. Do not put the mailbox password in a `VITE_*` variable or frontend code. The email tells the student the certificate is ready; the approved PDF remains available in the student portal for preview and download.
-
 ## Supabase foundation
 
 Company settings (including compressed logo, signature, stamp, and partner images) are saved in the protected `company_settings` table and loaded after admin sign-in. Upload images in Settings and press Save; success appears only after Supabase accepts the save. The same branding is then available to authorized staff on other devices. Apply the existing Supabase migrations and configure Firebase third-party authentication before deploying this change. Browser storage is only a cache, not the shared source of truth.

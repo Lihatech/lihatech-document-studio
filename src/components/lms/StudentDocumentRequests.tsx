@@ -12,6 +12,7 @@ const DocumentPreviewDialog=React.lazy(()=>import('./RequestDocumentPreview').th
 export default function StudentDocumentRequests({ student, enrollment, onProfileSaved }: { student: Row; enrollment?: Row; onProfileSaved?: () => Promise<void> }) {
   const [certificateType,setCertificateType]=useState<'Course Completion'|'Internship Completion'>(()=>enrollment?.certificate_type==='Internship Completion'?'Internship Completion':'Course Completion');
   const [domain,setDomain]=useState<string>(enrollment?.designation||'');
+  const [requestedStart,setRequestedStart]=useState<string>(enrollment?.batch_start_date||''),[requestedEnd,setRequestedEnd]=useState<string>(enrollment?.batch_end_date||'');
   const [personal,setPersonal] = useState(()=>profileValues(student));
   const changePersonal=(key:keyof StudentProfileValues,value:string)=>setPersonal(current=>({...current,[key]:value}));
   const [suggesting,setSuggesting] = useState<string|null>(null),[suggestion,setSuggestion] = useState('');
@@ -34,7 +35,11 @@ export default function StudentDocumentRequests({ student, enrollment, onProfile
     finally { setLoading(false); }
   }
   useEffect(()=>{void reload();const openNotification=()=>void reload();window.addEventListener('lihatech-notification-open',openNotification);return()=>window.removeEventListener('lihatech-notification-open',openNotification);},[]);
-  const missingSetup = [!enrollment?.course_name?.trim() && 'course / programme name'].filter(Boolean) as string[];
+  const missingSetup = [
+    !enrollment?.course_name?.trim() && 'course / programme name',
+    !enrollment?.batch_start_date && 'batch start date',
+    !enrollment?.batch_end_date && 'batch end date',
+  ].filter(Boolean) as string[];
   const assignmentAvailable = !!enrollment && !enrollment.left_at && enrollment.status !== 'revoked' && enrollment.batch_status !== 'cancelled';
   const configured = assignmentAvailable && missingSetup.length === 0;
   const shown = requests.filter(row => (status === 'all' || row.status === status)
@@ -42,7 +47,8 @@ export default function StudentDocumentRequests({ student, enrollment, onProfile
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setNotice(''); setBusy(true);
     try {
-      await rpc('lms_request_document', { p_request: { kind:'certificate', certificate_type:certificateType, designation:certificateType==='Internship Completion'?domain.trim():'', profile:{salutation:profileValues(personal).salutation,full_name:profileValues(personal).full_name} } });
+      if(!requestedStart||!requestedEnd||requestedEnd<requestedStart)throw new Error('Choose a start date and an end date on or after it.');
+      await rpc('lms_request_document', { p_request: { kind:'certificate', certificate_type:certificateType, designation:certificateType==='Internship Completion'?domain.trim():'', requested_start_date:requestedStart,requested_end_date:requestedEnd,profile:{salutation:profileValues(personal).salutation,full_name:profileValues(personal).full_name} } });
       await onProfileSaved?.();
       setRequests(await rpc<DocumentRequest[]>('lms_student_document_requests'));
       setNotice('Request sent. Admin will review and approve your certificate.');
@@ -60,11 +66,15 @@ export default function StudentDocumentRequests({ student, enrollment, onProfile
         {student.student_code&&<p className="request-help">Your student ID: <strong>{student.student_code}</strong></p>}
         <section className="request-personal-details"><h3>Name on your certificate</h3><p className="request-help">Correct your title or name if needed. No other profile details are required here.</p><StudentIdentityFields values={personal} change={changePersonal}/><p className="request-help">Name on document: <strong>{documentName(personal)||'Enter your full name'}</strong>. Name spacing and all-lowercase or all-uppercase names are cleaned up automatically. Check the spelling before sending.</p></section>
         {certificateType==='Internship Completion'&&<label>Internship domain / role <strong>Required</strong><input required maxLength={120} value={domain} onChange={event=>setDomain(event.target.value)} placeholder="e.g. Web Development or Developer Intern"/><span className="request-help">Admin will check this before approving your internship certificate.</span></label>}
-        <section className="request-personal-details"><h3>Course</h3><p className="request-help">Your certificate will be issued for the course recorded by LihaTech.</p><dl className="request-facts"><div><dt>Course / programme</dt><dd>{enrollment?.course_name || 'Admin setup needed'}</dd></div></dl></section>
-        {!configured && <p className="request-error">{!assignmentAvailable ? 'Ask admin to assign your completed course before requesting this document.' : `Ask admin to complete the course setup: ${missingSetup.join(', ')}. Your request will become available after it is saved.`}</p>}
-        <p className="request-help">Your student ID is generated automatically if you do not already have one. No batch details or identity documents are required.</p>
+        <details open className="request-official-details"><summary>Official batch course and dates</summary><dl className="request-facts">
+          <div><dt>Batch</dt><dd>{enrollment?.name || 'Not assigned'}</dd></div><div><dt>Course / programme</dt><dd>{enrollment?.course_name || 'Admin setup needed'}</dd></div>
+          <div><dt>Start date</dt><dd>{batchDateLabel(enrollment?.batch_start_date)}</dd></div><div><dt>End date</dt><dd>{batchDateLabel(enrollment?.batch_end_date)}</dd></div>
+        </dl></details>
+        <section className="request-personal-details"><h3>Requested certificate dates</h3><div className="request-date-grid"><label>Requested start date<input required type="date" value={requestedStart} onChange={event=>setRequestedStart(event.target.value)}/></label><label>Requested end date<input required type="date" min={requestedStart} value={requestedEnd} onChange={event=>setRequestedEnd(event.target.value)}/></label></div><p className="request-help">These start with your batch dates. You may request corrections; admin will review and approve the final dates. This does not change your learning access.</p></section>
+        {!configured && <p className="request-error">{!assignmentAvailable ? 'Ask admin to assign you to a batch before requesting this document.' : `Ask admin to complete these batch settings: ${missingSetup.join(', ')}. Your request will become available after they save the details.`}</p>}
+        <p className="request-help">Your course is assigned by admin. Requested date changes take effect on the certificate only after approval.</p>
         {error && <p className="request-error" role="alert">{error}</p>}{notice && <p className="request-notice" role="status">{notice}</p>}
-        <button className="primary-button" disabled={busy || !configured} title={!configured ? 'Ask admin to complete the course setup first.' : undefined} type="submit"><Send size={17}/>{busy ? 'Sending…' : 'Send request'}</button>
+        <button className="primary-button" disabled={busy || !configured} title={!configured ? 'Ask admin to complete the missing batch details first.' : undefined} type="submit"><Send size={17}/>{busy ? 'Sending…' : 'Send request'}</button>
       </form>
     </section>
     <section className="panel request-history"><div className="request-history-heading"><h2>Your requests <span>{requests.length}</span></h2><button type="button" onClick={() => void reload()} disabled={loading} aria-label="Refresh document requests"><RefreshCw size={18}/></button></div>
