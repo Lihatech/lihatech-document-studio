@@ -15,6 +15,7 @@ try{
   await page.getByRole('heading',{name:'Apply for your certificate',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Continue with Google'}).count(),0);
   await page.getByRole('textbox',{name:/Full name/}).fill('former student');
+  assert.equal((await page.locator('select[autocomplete="honorific-prefix"] option').allTextContents()).includes('Mx.'),false);
   await page.getByLabel('Email address',{exact:true}).fill('former@example.com');
   await page.getByRole('textbox',{name:/Course name/}).fill('Web Development');
   await page.getByLabel('Requested start date',{exact:true}).fill('2026-01-01');
