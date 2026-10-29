@@ -4,16 +4,19 @@ import type { Certificate, CompanySettings, Letter } from '../../types';
 import type { DocumentRequest } from '../../lib/documentRequests';
 import CertificatePreview from '../certificate/CertificatePreview';
 import { captureCertificate, createCertificatePdf } from '../../utils/certificateExport';
+import { Award, ArrowUpRight, CalendarDays, CheckCircle2, Eye, Mail, RefreshCw, Search, X } from 'lucide-react';
+import '../../styles/publicCertificateAdmin.css';
 
 type Application={id:string;full_name:string;course_name:string;certificate_type:string;designation:string;requested_start_date:string|null;requested_end_date:string|null;status:'pending'|'approved'|'declined';admin_note:string;email_status:string;created_at:string;document:Certificate|null;certificate_applicants:{email:string;student_code:string}};
 type Props={settings:CompanySettings;renderReview:(row:DocumentRequest,saved:Certificate|Letter|null,approve:(document:Certificate|Letter)=>Promise<boolean>)=>React.ReactNode};
 const endpoint='/admin/certificate-applications';
 export default function PublicCertificateApplications({settings,renderReview}:Props){
   const [rows,setRows]=useState<Application[]>([]),[selected,setSelected]=useState<Application|null>(null);
+  const [query,setQuery]=useState(''),[filter,setFilter]=useState('pending'),[loading,setLoading]=useState(true);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[note,setNote]=useState('');
   const [exporting,setExporting]=useState<{document:Certificate;resolve:(pdf:string)=>void;reject:(e:unknown)=>void}|null>(null);
   const lock=useRef(false);
-  async function reload(){try{setRows(await lmsRequest<Application[]>(endpoint));setError('');}catch(e){setError(e instanceof Error?e.message:'Could not load public applications.');}}
+  async function reload(){setLoading(true);try{setRows(await lmsRequest<Application[]>(endpoint));setError('');}catch(e){setError(e instanceof Error?e.message:'Could not load public applications.');}finally{setLoading(false);}}
   useEffect(()=>{void reload();},[]);
   async function send(row:Application){
     if(lock.current)return;lock.current=true;setBusy(true);setError('');setNotice('');
@@ -37,24 +40,36 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
     catch(e){setError(e instanceof Error?e.message:'Could not decline.');}finally{lock.current=false;setBusy(false);}
   }
   const draft:DocumentRequest|null=selected?{id:selected.id,kind:'certificate',candidate_name:selected.full_name,program_name:selected.course_name,certificate_type:'Course Completion',offer_type:null,designation:'',department:'',start_date:null,end_date:null,details:'',status:'pending',admin_note:'',created_at:selected.created_at,student_code:selected.certificate_applicants.student_code,student_email:selected.certificate_applicants.email}:null;
-  return <section className="panel" style={{marginBottom:24}}>
-    <h2>Public certificate applications</h2><p>Former students applying without a batch or LMS account.</p><p><a href="/certificate-request" target="_blank" rel="noopener noreferrer">Open public application form</a></p>
-    <button type="button" className="outline-button" disabled={busy} onClick={()=>void reload()}>Refresh applications</button>
+  const shown=rows.filter(row=>(filter==='all'||row.status===filter)&&`${row.full_name} ${row.course_name} ${row.certificate_applicants.email} ${row.certificate_applicants.student_code}`.toLowerCase().includes(query.toLowerCase()));
+  const dateLabel=(value:string|null)=>value?new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeZone:'UTC'}).format(new Date(value)):'Not provided';
+  const statuses={pending:'Awaiting review',approved:'Approved',declined:'Declined'};
+  return <section className="public-certificate-admin" aria-label="Public certificate applications">
+    <header className="public-applications-heading"><div><p className="request-kicker">PUBLIC APPLICATIONS</p><h2>Certificate applications</h2><p>Review completion requests from applicants outside the student portal.</p></div><div className="public-applications-toolbar"><a className="public-app-button secondary" href="/certificate-request" target="_blank" rel="noopener noreferrer"><ArrowUpRight size={17}/>Open public form</a><button type="button" className="public-app-button secondary" disabled={busy||loading} onClick={()=>void reload()}><RefreshCw size={16}/>{loading?'Refreshing…':'Refresh applications'}</button></div></header>
     {error&&<p role="alert" className="request-error">{error}</p>}{notice&&<p role="status" className="request-notice">{notice}</p>}
-    {!rows.length?<p>No public applications yet.</p>:<div className="request-admin-list">{rows.map(row=><article className="request-admin-card" key={row.id}><h3>{row.full_name} · {row.course_name}</h3><p>{row.certificate_applicants.email} · Student ID: {row.certificate_applicants.student_code}</p><p>Status: {row.status}{row.status==='approved'?` · Email: ${row.email_status}`:''}</p>{row.admin_note&&<p>{row.admin_note}</p>}{row.status==='pending'&&<button type="button" className="primary-button" disabled={busy} onClick={()=>{setSelected(row);setNote('');setError('');}}>Review application</button>}{row.status==='approved'&&['not_sent','failed','sending'].includes(row.email_status)&&<button type="button" className="outline-button" disabled={busy} onClick={()=>void send(row)}>Retry email</button>}</article>)}</div>}
+    <div className="public-applications-filters"><div role="group" aria-label="Application status">{(['pending','approved','declined','all'] as const).map(value=><button type="button" key={value} className={filter===value?'active':''} aria-pressed={filter===value} onClick={()=>setFilter(value)}>{value==='pending'?'Needs review':value==='all'?'All applications':statuses[value]}<span>{rows.filter(row=>value==='all'||row.status===value).length}</span></button>)}</div><label className="public-application-search"><Search size={16}/><span className="sr-only">Search public applications</span><input type="search" placeholder="Search name, course, email or ID" value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+    {loading&&!rows.length?<p className="request-empty" role="status">Loading applications…</p>:!shown.length?<div className="request-empty"><Award size={28}/><p>{rows.length?'No applications match these filters.':'No public applications yet.'}</p></div>:<div className="request-admin-list">{shown.map(row=><article className="request-admin-card public-application-card" key={row.id}>
+      <div className="request-admin-card-head"><div><span className="request-doc-icon"><Award size={22}/></span><div><h3>{row.full_name}</h3><p>{row.course_name}</p></div></div><span className={`request-status ${row.status==='approved'?'fulfilled':row.status}`}>{statuses[row.status]}</span></div>
+      <dl className="public-application-facts"><div><dt>Student ID · automatic</dt><dd className="public-application-id">{row.certificate_applicants.student_code}</dd></div><div><dt>Email address</dt><dd>{row.certificate_applicants.email}</dd></div><div><dt>Certificate type</dt><dd>{row.certificate_type||'Course Completion'}</dd></div><div><dt>Requested dates</dt><dd>{dateLabel(row.requested_start_date)} – {dateLabel(row.requested_end_date)}</dd></div>{row.designation&&<div><dt>Internship domain / role</dt><dd>{row.designation}</dd></div>}</dl>
+      {row.admin_note&&<p className="request-student-note"><strong>Admin note</strong>{row.admin_note}</p>}
+      <footer className="public-application-actions"><span><CalendarDays size={15}/>Applied {dateLabel(row.created_at)}</span><div>
+        {row.status==='pending'&&<button type="button" className="public-app-button primary" disabled={busy} onClick={()=>{setSelected(row);setNote('');setError('');}}><Eye size={17}/>Review application<ArrowUpRight size={16}/></button>}
+        {row.status==='approved'&&(row.email_status==='sent'?<span className="public-application-delivered"><CheckCircle2 size={17}/>Certificate emailed</span>:<><span className="public-application-email-state">{row.email_status==='sending'?'Email is being sent':'Email not delivered'}</span><button type="button" className="public-app-button secondary" disabled={busy} onClick={()=>void send(row)}><Mail size={17}/>Retry email</button></>)}
+      </div></footer>
+    </article>)}</div>}
     {selected&&draft&&<ApplicationDialog busy={busy} onClose={()=>setSelected(null)}>
-      <h2>Review public certificate application</h2><p>{selected.full_name} · {selected.certificate_applicants.email}</p><p>Confirm course completion, edit certificate details as needed, then approve to email the PDF.</p>
+      <div className="request-review-summary"><p className="request-kicker">CERTIFICATE REVIEW</p><h2>Review public certificate application</h2><p>{selected.full_name} · {selected.certificate_applicants.email}</p><p>Confirm course completion, edit certificate details as needed, then approve to email the PDF.</p></div>
+      <div className="public-review-student-id"><Award size={20}/><div><strong>{selected.certificate_applicants.student_code}</strong><span>Student ID assigned automatically and included on this certificate.</span></div></div>
       {error&&<p role="alert" className="request-error">{error}</p>}
       <dl className="request-facts"><div><dt>Certificate type</dt><dd>{selected.certificate_type}</dd></div><div><dt>Requested dates</dt><dd>{selected.requested_start_date||'Not provided'} – {selected.requested_end_date||'Not provided'}</dd></div>{selected.designation&&<div><dt>Internship domain / role</dt><dd>{selected.designation}</dd></div>}</dl>
       {renderReview({...draft,certificate_type:selected.certificate_type||'Course Completion',designation:selected.designation||'',requested_start_date:selected.requested_start_date,requested_end_date:selected.requested_end_date,certificate_number:`LT-CERT-P-${selected.id.replace(/-/g,'').toUpperCase()}`},selected.document,approve)}
-      <label>Reason for declining<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></label><button type="button" className="request-danger" disabled={busy||!note.trim()} onClick={()=>void decline()}>Decline application</button>
+      <div className="request-review-footer"><label>Reason for declining<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)} placeholder="Explain why this application cannot be approved"/></label><button type="button" className="public-app-button danger" disabled={busy||!note.trim()} onClick={()=>void decline()}>Decline application</button></div>
     </ApplicationDialog>}
     {exporting&&<ExportSheet document={exporting.document} settings={settings} ready={exporting.resolve} failed={exporting.reject}/>}
   </section>;
 }
 function ApplicationDialog({children,busy,onClose}:{children:React.ReactNode;busy:boolean;onClose:()=>void}){
   const ref=useRef<HTMLDialogElement>(null);useEffect(()=>{ref.current?.showModal();},[]);
-  return <dialog ref={ref} className="request-review-dialog" aria-label="Review public certificate" onCancel={e=>{if(busy)e.preventDefault();}} onClose={onClose}><button type="button" className="outline-button" disabled={busy} onClick={()=>ref.current?.close()}>Close</button>{children}</dialog>;
+  return <dialog ref={ref} className="request-review-dialog public-application-review" aria-label="Review public certificate" onCancel={e=>{if(busy)e.preventDefault();}} onClose={onClose}><button type="button" className="request-review-close public-app-button secondary" disabled={busy} onClick={()=>ref.current?.close()}><X size={17}/>Close</button>{children}</dialog>;
 }
 function ExportSheet({document,settings,ready,failed}:{document:Certificate;settings:CompanySettings;ready:(value:string)=>void;failed:(e:unknown)=>void}){
   const ref=useRef<HTMLDivElement>(null),started=useRef(false);

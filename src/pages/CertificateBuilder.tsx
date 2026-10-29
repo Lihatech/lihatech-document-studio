@@ -166,7 +166,7 @@ export default function CertificateBuilder({
 
   const handleSaveCertificate = async () => {
     if(submitRef.current)return;
-    if(studentId.trim()&&!/^LT-STU-[0-9]+$/.test(studentId.trim())){showWarning('Enter the student ID shown in Batches & students, or leave it empty for a document without a registered student.');return;}
+    if(studentId.trim()&&!/^LT-(?:CERT-)?STU-[0-9]+$/.test(studentId.trim())){showWarning('Enter a valid LihaTech student ID, or leave it empty for a document without a registered student.');return;}
     if (!candidateName.trim()) {
       showWarning('Candidate Name is required!');
       return;
@@ -293,7 +293,7 @@ export default function CertificateBuilder({
           </div>
 
           {/* Certification Category */}
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Student ID (optional)<input value={studentId} readOnly={!!requestDraft} onChange={event=>setStudentId(event.target.value)} placeholder="LT-STU-100001" className="mt-2 block w-full rounded-xl border border-slate-300 bg-transparent px-4 py-2.5 text-sm font-mono"/></label>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">{requestDraft?'Student ID (assigned automatically)':'Student ID (optional)'}<input value={studentId} readOnly={!!requestDraft} onChange={event=>setStudentId(event.target.value)} placeholder="LT-STU-100001" className="mt-2 block w-full rounded-xl border border-slate-300 bg-transparent px-4 py-2.5 text-sm font-mono"/></label>
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certification Category</label>
             <SavedOptionSelect label="Certification category" value={certificateType}
