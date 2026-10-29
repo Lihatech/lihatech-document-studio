@@ -52,6 +52,10 @@ class DeclineInput(BaseModel):
     note: str = Field(min_length=1, max_length=1000)
 
 
+class CorrectionInput(ApprovalInput):
+    expected_updated_at: datetime
+
+
 def decode_pdf(value):
     try:
         pdf = base64.b64decode(value, validate=True)
@@ -152,6 +156,23 @@ def register(app, db, require_manager):
         if row['status'] != 'approved':
             raise HTTPException(409, 'Approve the certificate first.')
         return deliver(row)
+
+    @app.post('/api/admin/certificate-applications/{application_id}/correct')
+    def correct(application_id: UUID, body: CorrectionInput, _admin=Depends(require_manager)):
+        decode_pdf(body.pdf_base64)
+        row = get_row(application_id)
+        if row['status'] != 'approved' or row['email_status'] == 'sending':
+            raise HTTPException(409, 'Only approved certificates with no email in progress can be corrected.')
+        if not str(body.document.get('certificateId', '')).strip():
+            raise HTTPException(422, 'A certificate number is required.')
+        rows = db.table('certificate_applications').update({
+            'document': body.document, 'pdf_base64': body.pdf_base64,
+            'email_status': 'not_sent', 'email_sent_at': None,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }).eq('id', row['id']).eq('status', 'approved').neq('email_status', 'sending').eq('updated_at', body.expected_updated_at.isoformat()).execute().data
+        if not rows:
+            raise HTTPException(409, 'This certificate changed. Refresh and review it again before saving.')
+        return deliver(rows[0])
 
     @app.post('/api/admin/certificate-applications/{application_id}/decline')
     def decline(application_id: UUID, body: DeclineInput, _admin=Depends(require_manager)):

@@ -1146,7 +1146,7 @@ export default function CertificatePreview({
                 onPointerDown={(event) => handleLayoutPointerDown(event, 'certificateId')}
               >
                 <span className="text-[14px] font-black uppercase tracking-widest text-slate-700 block leading-tight" style={{ fontSize: `${14 * getElementScale('certificateId')}px` }}>CERTIFICATE ID</span>
-                <span className="font-mono font-black text-black text-base mt-2" style={{ fontSize: `${16 * getElementScale('certificateId')}px` }}>{certificate.certificateId}</span>
+                <span className="font-mono font-black text-black text-base mt-2" style={{ fontSize: `${Math.min(16,180/(Math.max(certificate.certificateId.length,1)*.65)) * getElementScale('certificateId')}px`, whiteSpace:'nowrap', maxWidth:'100%' }}>{certificate.certificateId}</span>
                 {certificate.studentId&&<span className="font-mono text-[10px] font-bold text-slate-700 mt-1">Student ID: {certificate.studentId}</span>}
                 {renderResizeHandle('certificateId')}
               </div>

@@ -22,12 +22,12 @@ const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader
   b.onLoad({filter:/.*/,namespace:'test-worker'},()=>({contents:`export default '/pdf-worker.mjs'`,loader:'js'}));
   b.onLoad({filter:/src[\\/]utils[\\/]certificateExport\.ts$/},()=>({contents:`import{jsPDF}from'jspdf';export async function captureCertificate(){return {}};export async function createCertificatePdf(){const pdf=new jsPDF({orientation:'landscape'});pdf.setFillColor(225,240,250);pdf.rect(0,0,297,210,'F');return {pdfBlob:pdf.output('blob')}}`,loader:'js'}));
 }}]});
-const row={id:'00000000-0000-4000-8000-000000000001',full_name:'Example Applicant',course_name:'Python course',certificate_type:'Course Completion',designation:'',requested_start_date:'2026-01-01',requested_end_date:'2026-06-30',status:'pending',admin_note:'',email_status:'not_sent',created_at:'2026-10-29T08:00:00Z',document:null,certificate_applicants:{email:'applicant@example.com',student_code:'LT-CERT-STU-100072'}};
-let approval,pdfReads=0;
+const row={id:'12345678-9abc-4000-8000-000000000001',full_name:'Example Applicant',course_name:'Python course',certificate_type:'Course Completion',designation:'',requested_start_date:'2026-01-01',requested_end_date:'2026-06-30',status:'pending',admin_note:'',email_status:'not_sent',created_at:'2026-10-29T08:00:00Z',updated_at:'2026-10-29T08:00:00Z',document:null,certificate_applicants:{email:'applicant@example.com',student_code:'LT-CERT-STU-100072'}};
+let approval,correction,pdfReads=0;
 const server=createServer(async(req,res)=>{
   if(req.url==='/pdf-worker.mjs'){res.setHeader('Content-Type','application/javascript');res.end(worker);return;}
   if(req.url==='/admin/certificate-applications'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify([row]));return;}
-  if(req.url?.endsWith('/approve')){let body='';for await(const chunk of req)body+=chunk;approval=JSON.parse(body);row.status='approved';row.email_status='sent';res.setHeader('Content-Type','application/json');res.end(JSON.stringify({approved:true,email_sent:true}));return;}
+  if(req.url?.endsWith('/approve')||req.url?.endsWith('/correct')){let body='';for await(const chunk of req)body+=chunk;const result=JSON.parse(body);if(req.url.endsWith('/correct'))correction=result;else approval=result;row.document=result.document;row.status='approved';row.email_status='sent';res.setHeader('Content-Type','application/json');res.end(JSON.stringify({approved:true,email_sent:true}));return;}
   if(req.url?.endsWith('/pdf')){pdfReads++;res.setHeader('Content-Type','application/pdf');res.end(Buffer.from(approval.pdf_base64,'base64'));return;}
   const asset=bundle.outputFiles.find(file=>file.path.replace(/\\/g,'/').endsWith(req.url));
   if(asset){res.setHeader('Content-Type',req.url.endsWith('.css')?'text/css':'application/javascript');res.end(asset.contents);return;}
@@ -57,6 +57,7 @@ try{
  await page.getByRole('button',{name:'Approve and send',exact:true}).first().click();
  await page.getByText('Approved. The certificate PDF was emailed to the applicant.',{exact:true}).waitFor();
  assert.equal(approval.document.studentId,'LT-CERT-STU-100072');assert.equal(approval.document.candidateEmail,'applicant@example.com');assert.ok(approval.pdf_base64);
+ assert.equal(approval.document.certificateId,'LT-CERT-123456789ABC');
  assert.equal(await page.getByRole('button',{name:/^Approved/}).getAttribute('aria-pressed'),'true');await page.getByText('Certificate emailed',{exact:true}).waitFor();
  await page.setViewportSize({width:1280,height:900});
  await page.getByRole('button',{name:'Preview certificate',exact:true}).click();
@@ -74,5 +75,12 @@ try{
  await preview.getByRole('button',{name:'Close certificate preview'}).click();
  const cardDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download PDF',exact:true}).click();await cardDownload;
  assert.equal(pdfReads,2);
+ row.document={...row.document,certificateId:'LT-CERT-P-'+row.id.replace(/-/g,'').toUpperCase()};
+ await page.getByRole('button',{name:'Refresh applications',exact:true}).click();await page.getByRole('button',{name:'Correct certificate',exact:true}).click();
+ await page.getByText('LT-CERT-123456789ABC',{exact:true}).first().waitFor();
+ assert.equal(correction,undefined,'Opening a correction must not save or email anything');
+ await page.getByRole('button',{name:'Approve and send',exact:true}).first().click();
+ await page.getByText('Corrected certificate saved and emailed to the applicant.',{exact:true}).waitFor();
+ assert.equal(correction.document.certificateId,'LT-CERT-123456789ABC');assert.equal(correction.document.studentId,'LT-CERT-STU-100072');assert.equal(correction.expected_updated_at,row.updated_at);
  assert.deepEqual(errors,[]);console.log('Public admin: ID approval, cards/filters, real PDF rendering at full preview width, desktop/mobile sizing and original PDF download passed. API/capture mocked; no email sent.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

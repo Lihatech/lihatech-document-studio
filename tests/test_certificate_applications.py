@@ -29,6 +29,7 @@ class CertificateApplicationsTest(unittest.TestCase):
         self.assertEqual(client.get('/api/admin/certificate-applications').status_code, 401)
         self.assertEqual(client.post('/api/admin/certificate-applications/00000000-0000-0000-0000-000000000001/send').status_code, 401)
         self.assertEqual(client.get('/api/admin/certificate-applications/00000000-0000-0000-0000-000000000001/pdf').status_code, 401)
+        self.assertEqual(client.post('/api/admin/certificate-applications/00000000-0000-0000-0000-000000000001/correct',json={}).status_code,401)
         self.assertEqual(client.post('/api/public/certificate-applications', json={'full_name':'Student','email':'bad','course_name':'Course'}).status_code, 422)
 
     def test_public_submission_needs_no_login_or_batch(self):
@@ -84,6 +85,29 @@ class CertificateApplicationsTest(unittest.TestCase):
         self.assertEqual(client.get(path).status_code,404)
         result.data=[]
         self.assertEqual(client.get(path).status_code,404)
+
+    def test_correction_requires_reviewed_version_and_approved_status(self):
+        db=MagicMock(); app=FastAPI(); register(app,db,lambda:None)
+        row={'id':'00000000-0000-0000-0000-000000000001','applicant_id':'person','status':'approved','email_status':'sent','updated_at':'2026-10-29T08:00:00+00:00'}
+        lookup=db.table.return_value.select.return_value.eq.return_value.execute.return_value
+        lookup.data=[row]
+        updated=db.table.return_value.update.return_value.eq.return_value.eq.return_value.neq.return_value.eq.return_value.execute.return_value
+        pdf=base64.b64encode(b'%PDF-1.4 corrected').decode()
+        updated.data=[{**row,'email_status':'not_sent','pdf_base64':pdf}]
+        db.table.return_value.update.return_value.eq.return_value.in_.return_value.execute.return_value.data=[row]
+        db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data={'email':'person@example.com','student_code':'LT-CERT-STU-100072'}
+        body={'document':{'certificateId':'LT-CERT-123456789ABC'},'pdf_base64':pdf,'expected_updated_at':row['updated_at']}
+        path='/api/admin/certificate-applications/'+row['id']+'/correct'
+        with patch('backend.certificate_applications.send_certificate') as send:
+            client=TestClient(app);response=client.post(path,json=body)
+            self.assertEqual(response.status_code,200);send.assert_called_once()
+            self.assertEqual(db.table.return_value.update.call_args_list[0].args[0]['pdf_base64'],pdf)
+            send.reset_mock();updated.data=[]
+            self.assertEqual(client.post(path,json=body).status_code,409);send.assert_not_called()
+            lookup.data=[{**row,'status':'pending'}]
+            self.assertEqual(client.post(path,json=body).status_code,409)
+            lookup.data=[{**row,'email_status':'sending'}]
+            self.assertEqual(client.post(path,json=body).status_code,409)
 
 
 if __name__ == '__main__':

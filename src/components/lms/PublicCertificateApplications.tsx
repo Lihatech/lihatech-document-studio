@@ -7,10 +7,12 @@ import { captureCertificate, createCertificatePdf } from '../../utils/certificat
 import { Award, ArrowUpRight, CalendarDays, CheckCircle2, Download, Eye, Mail, RefreshCw, Search, X } from 'lucide-react';
 import '../../styles/publicCertificateAdmin.css';
 
-type Application={id:string;full_name:string;course_name:string;certificate_type:string;designation:string;requested_start_date:string|null;requested_end_date:string|null;status:'pending'|'approved'|'declined';admin_note:string;email_status:string;created_at:string;document:Certificate|null;certificate_applicants:{email:string;student_code:string}};
+type Application={id:string;full_name:string;course_name:string;certificate_type:string;designation:string;requested_start_date:string|null;requested_end_date:string|null;status:'pending'|'approved'|'declined';admin_note:string;email_status:string;created_at:string;updated_at:string;document:Certificate|null;certificate_applicants:{email:string;student_code:string}};
 type Props={settings:CompanySettings;renderReview:(row:DocumentRequest,saved:Certificate|Letter|null,approve:(document:Certificate|Letter)=>Promise<boolean>)=>React.ReactNode};
 const endpoint='/admin/certificate-applications';
 const PdfMaterialPreview=React.lazy(()=>import('./PdfMaterialPreview'));
+const certificateNumber=(id:string)=>`LT-CERT-${id.replace(/-/g,'').slice(0,12).toUpperCase()}`;
+const correctionDocument=(row:Application)=>row.document?{...row.document,certificateId:/^LT-CERT-P-[A-F0-9]{32}$/.test(row.document.certificateId)?certificateNumber(row.id):row.document.certificateId}:null;
 export default function PublicCertificateApplications({settings,renderReview}:Props){
   const [rows,setRows]=useState<Application[]>([]),[selected,setSelected]=useState<Application|null>(null);
   const [query,setQuery]=useState(''),[filter,setFilter]=useState('pending'),[loading,setLoading]=useState(true);
@@ -42,8 +44,9 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
     try{
       const certificate={...document,studentId:selected.certificate_applicants.student_code,candidateEmail:selected.certificate_applicants.email} as Certificate;
       const pdf_base64=await new Promise<string>((resolve,reject)=>setExporting({document:certificate,resolve,reject}));
-      const result=await lmsRequest<{email_sent:boolean}>(`${endpoint}/${selected.id}/approve`,{method:'POST',body:JSON.stringify({document:certificate,pdf_base64})});
-      setSelected(null);setFilter('approved');setNotice(result.email_sent?'Approved. The certificate PDF was emailed to the applicant.':'Approved and saved. Email failed; check Hostinger settings, then use Retry email.');await reload();return true;
+      const correcting=selected.status==='approved';
+      const result=await lmsRequest<{email_sent:boolean}>(`${endpoint}/${selected.id}/${correcting?'correct':'approve'}`,{method:'POST',body:JSON.stringify({document:certificate,pdf_base64,expected_updated_at:selected.updated_at})});
+      setSelected(null);setFilter('approved');setNotice(result.email_sent?correcting?'Corrected certificate saved and emailed to the applicant.':'Approved. The certificate PDF was emailed to the applicant.':'Certificate saved. Email failed; check Hostinger settings, then use Retry email.');await reload();return true;
     }catch(e){setError(e instanceof Error?e.message:'Could not approve the certificate.');return false;}
     finally{setExporting(null);lock.current=false;setBusy(false);}
   }
@@ -67,16 +70,18 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
       <footer className="public-application-actions"><span><CalendarDays size={15}/>Applied {dateLabel(row.created_at)}</span><div>
         {row.status==='pending'&&<button type="button" className="public-app-button primary" disabled={busy} onClick={()=>{setSelected(row);setNote('');setError('');}}><Eye size={17}/>Review application<ArrowUpRight size={16}/></button>}
         {row.status==='approved'&&<><button type="button" className="public-app-button secondary" disabled={!!opening||busy} onClick={()=>void openPdf(row)}><Eye size={17}/>{opening===row.id?'Opening…':'Preview certificate'}</button><button type="button" className="public-app-button primary" disabled={!!opening||busy} onClick={()=>void openPdf(row,true)}><Download size={17}/>Download PDF</button></>}
+        {row.status==='approved'&&row.document&&<button type="button" className="public-app-button secondary" disabled={busy||row.email_status==='sending'} onClick={()=>{setSelected(row);setError('');}}><RefreshCw size={17}/>Correct certificate</button>}
         {row.status==='approved'&&(row.email_status==='sent'?<span className="public-application-delivered"><CheckCircle2 size={17}/>Certificate emailed</span>:<><span className="public-application-email-state">{row.email_status==='sending'?'Email is being sent':'Email not delivered'}</span><button type="button" className="public-app-button secondary" disabled={busy} onClick={()=>void send(row)}><Mail size={17}/>Retry email</button></>)}
       </div></footer>
     </article>)}</div>}
     {selected&&draft&&<ApplicationDialog busy={busy} onClose={()=>setSelected(null)}>
       <div className="request-review-summary"><p className="request-kicker">CERTIFICATE REVIEW</p><h2>Review public certificate application</h2><p>{selected.full_name} · {selected.certificate_applicants.email}</p><p>Confirm course completion, edit certificate details as needed, then approve to email the PDF.</p></div>
       <div className="public-review-student-id"><Award size={20}/><div><strong>{selected.certificate_applicants.student_code}</strong><span>Student ID assigned automatically and included on this certificate.</span></div></div>
+      {selected.status==='approved'&&<p className="request-notice">Review the corrected certificate number below. Approve and send will replace the saved PDF and email the corrected copy. Your student ID stays unchanged.</p>}
       {error&&<p role="alert" className="request-error">{error}</p>}
       <dl className="request-facts"><div><dt>Certificate type</dt><dd>{selected.certificate_type}</dd></div><div><dt>Requested dates</dt><dd>{selected.requested_start_date||'Not provided'} – {selected.requested_end_date||'Not provided'}</dd></div>{selected.designation&&<div><dt>Internship domain / role</dt><dd>{selected.designation}</dd></div>}</dl>
-      {renderReview({...draft,certificate_type:selected.certificate_type||'Course Completion',designation:selected.designation||'',requested_start_date:selected.requested_start_date,requested_end_date:selected.requested_end_date,certificate_number:`LT-CERT-P-${selected.id.replace(/-/g,'').toUpperCase()}`},selected.document,approve)}
-      <div className="request-review-footer"><label>Reason for declining<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)} placeholder="Explain why this application cannot be approved"/></label><button type="button" className="public-app-button danger" disabled={busy||!note.trim()} onClick={()=>void decline()}>Decline application</button></div>
+      {renderReview({...draft,certificate_type:selected.certificate_type||'Course Completion',designation:selected.designation||'',requested_start_date:selected.requested_start_date,requested_end_date:selected.requested_end_date,certificate_number:certificateNumber(selected.id)},selected.status==='approved'?correctionDocument(selected):selected.document,approve)}
+      {selected.status==='pending'&&<div className="request-review-footer"><label>Reason for declining<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)} placeholder="Explain why this application cannot be approved"/></label><button type="button" className="public-app-button danger" disabled={busy||!note.trim()} onClick={()=>void decline()}>Decline application</button></div>}
     </ApplicationDialog>}
     {exporting&&<ExportSheet document={exporting.document} settings={settings} ready={exporting.resolve} failed={exporting.reject}/>}
     {viewer&&<SavedCertificateDialog viewer={viewer} onClose={()=>setViewer(null)}/>}
