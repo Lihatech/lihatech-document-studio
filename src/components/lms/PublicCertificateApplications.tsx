@@ -5,7 +5,7 @@ import type { DocumentRequest } from '../../lib/documentRequests';
 import CertificatePreview from '../certificate/CertificatePreview';
 import { captureCertificate, createCertificatePdf } from '../../utils/certificateExport';
 
-type Application={id:string;full_name:string;course_name:string;status:'pending'|'approved'|'declined';admin_note:string;email_status:string;created_at:string;document:Certificate|null;certificate_applicants:{email:string;student_code:string}};
+type Application={id:string;full_name:string;course_name:string;certificate_type:string;designation:string;requested_start_date:string|null;requested_end_date:string|null;status:'pending'|'approved'|'declined';admin_note:string;email_status:string;created_at:string;document:Certificate|null;certificate_applicants:{email:string;student_code:string}};
 type Props={settings:CompanySettings;renderReview:(row:DocumentRequest,saved:Certificate|Letter|null,approve:(document:Certificate|Letter)=>Promise<boolean>)=>React.ReactNode};
 const endpoint='/admin/certificate-applications';
 export default function PublicCertificateApplications({settings,renderReview}:Props){
@@ -45,7 +45,8 @@ export default function PublicCertificateApplications({settings,renderReview}:Pr
     {selected&&draft&&<ApplicationDialog busy={busy} onClose={()=>setSelected(null)}>
       <h2>Review public certificate application</h2><p>{selected.full_name} · {selected.certificate_applicants.email}</p><p>Confirm course completion, edit certificate details as needed, then approve to email the PDF.</p>
       {error&&<p role="alert" className="request-error">{error}</p>}
-      {renderReview({...draft,certificate_number:`LT-CERT-P-${selected.id.replace(/-/g,'').toUpperCase()}`},selected.document,approve)}
+      <dl className="request-facts"><div><dt>Certificate type</dt><dd>{selected.certificate_type}</dd></div><div><dt>Requested dates</dt><dd>{selected.requested_start_date||'Not provided'} – {selected.requested_end_date||'Not provided'}</dd></div>{selected.designation&&<div><dt>Internship domain / role</dt><dd>{selected.designation}</dd></div>}</dl>
+      {renderReview({...draft,certificate_type:selected.certificate_type||'Course Completion',designation:selected.designation||'',requested_start_date:selected.requested_start_date,requested_end_date:selected.requested_end_date,certificate_number:`LT-CERT-P-${selected.id.replace(/-/g,'').toUpperCase()}`},selected.document,approve)}
       <label>Reason for declining<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></label><button type="button" className="request-danger" disabled={busy||!note.trim()} onClick={()=>void decline()}>Decline application</button>
     </ApplicationDialog>}
     {exporting&&<ExportSheet document={exporting.document} settings={settings} ready={exporting.resolve} failed={exporting.reject}/>}

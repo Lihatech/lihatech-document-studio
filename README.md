@@ -58,9 +58,11 @@ The team page creates a pending invitation without sending email. Share the app 
 
 ## Public certificate applications
 
-`/certificate-request` is a public form accepting full name, email and completed course. It creates a separate certificate applicant ID; it never creates an LMS account or batch enrollment. Admins review these in the **Public certificate applications** section of `/certificate-requests` and use the existing certificate editor. Approval saves the PDF and sends it as an email attachment. A failed email can be retried from the list without approving again.
+`/certificate-request` is a public form using the student portal's certificate form styles: optional title, full name, email, course, Course/Internship choice, requested dates, and an internship domain/role when applicable. It creates a separate certificate applicant ID; it never creates an LMS account or batch enrollment. Admins review these details in the **Public certificate applications** section of `/certificate-requests` and use the existing certificate editor. Approval saves the PDF and sends it as an email attachment. A failed email can be retried from the list without approving again.
 
 Apply `supabase/migrations/20261104000000_public_certificate_applications.sql` in Supabase SQL Editor after the existing migrations. These tables are private: only the authenticated admin API can read applications; public submissions go through the validated API. Configure the existing backend Firebase and Supabase server credentials, plus `HOSTINGER_SMTP_USER` (your full info@ mailbox) and `HOSTINGER_SMTP_PASSWORD` (mailbox password). Never prefix server credentials with `VITE_`.
+
+For the expanded form, also apply `supabase/migrations/20261105000000_public_certificate_details.sql` before deploying the update. Existing applications retain their Course Completion default; new applications include dates and certificate type for admin review.
 
 For local development, put server settings in `backend/.env`, run `uvicorn backend.main:app --port 8000`, then `npm run dev` in another terminal. Vite proxies `/api` to port 8000. Vercel uses the existing Python API entry point and API rewrites; add the same server settings in Vercel environment variables. Until the migration and SMTP credentials are configured, submissions/email will not work.
 

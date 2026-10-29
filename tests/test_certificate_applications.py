@@ -9,8 +9,10 @@ from backend.certificate_applications import ApplicationInput, decode_pdf, regis
 
 
 class CertificateApplicationsTest(unittest.TestCase):
+    dates = {'requested_start_date':'2026-01-01','requested_end_date':'2026-06-30'}
+
     def test_validation_and_pdf(self):
-        body = ApplicationInput(full_name=' Former  Student ', email='former@example.com', course_name=' Web Development ')
+        body = ApplicationInput(full_name=' Former  Student ', email='former@example.com', course_name=' Web Development ', **self.dates)
         self.assertEqual(body.full_name, 'Former Student')
         with self.assertRaises(ValueError):
             ApplicationInput(full_name=' ', email='bad', course_name='Course')
@@ -33,11 +35,27 @@ class CertificateApplicationsTest(unittest.TestCase):
         db.rpc.return_value.execute.return_value.data = {'id':'application', 'student_code':'LT-CERT-STU-100001'}
         app = FastAPI()
         register(app, db, lambda: None)
-        response = TestClient(app).post('/api/public/certificate-applications', json={'full_name':'Former Student','email':'former@example.com','course_name':'Course'})
+        response = TestClient(app).post('/api/public/certificate-applications', json={'full_name':'Former Student','email':'former@example.com','course_name':'Course',**self.dates})
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()['student_code'], 'LT-CERT-STU-100001')
-        db.rpc.assert_called_once_with('submit_public_certificate_application', {'p_name':'Former Student','p_email':'former@example.com','p_course':'Course'})
+        db.rpc.assert_called_once_with('submit_public_certificate_application_details', {'p_name':'Former Student','p_email':'former@example.com','p_course':'Course','p_type':'Course Completion','p_domain':'','p_start':'2026-01-01','p_end':'2026-06-30'})
         db.table.assert_not_called()
+
+    def test_internship_dates_and_domain(self):
+        details = {'full_name':'Student','email':'former@example.com','course_name':'Course',**self.dates}
+        with self.assertRaises(ValueError):
+            ApplicationInput(**details, certificate_type='Internship Completion')
+        body = ApplicationInput(**details, certificate_type='Internship Completion', designation=' Web Development ')
+        self.assertEqual(body.designation, 'Web Development')
+        with self.assertRaises(ValueError):
+            ApplicationInput(**{**details,'requested_end_date':'2025-12-31'})
+        with self.assertRaises(ValueError):
+            ApplicationInput(**details, certificate_type='Invalid')
+        app=FastAPI(); db=MagicMock(); db.rpc.return_value.execute.return_value.data={'id':'application','student_code':'LT-CERT-STU-100001'}; register(app,db,lambda:None)
+        response=TestClient(app).post('/api/public/certificate-applications',json={**details,'certificate_type':'Internship Completion','designation':'Developer Intern'})
+        self.assertEqual(response.status_code,201)
+        self.assertEqual(db.rpc.call_args.args[1]['p_type'],'Internship Completion')
+        self.assertEqual(db.rpc.call_args.args[1]['p_domain'],'Developer Intern')
 
     def test_email_uses_stored_recipient_and_pdf(self):
         row = {'full_name':'Student','course_name':'Course','pdf_base64':base64.b64encode(b'%PDF-1.4 test').decode()}

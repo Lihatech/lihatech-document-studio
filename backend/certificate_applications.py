@@ -5,18 +5,23 @@ import logging
 import os
 import smtplib
 import ssl
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from email.message import EmailMessage
 from uuid import UUID
+from typing import Literal
 
 from fastapi import Depends, HTTPException
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 class ApplicationInput(BaseModel):
     full_name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     course_name: str = Field(min_length=1, max_length=180)
+    certificate_type: Literal['Course Completion', 'Internship Completion'] = 'Course Completion'
+    designation: str = Field(default='', max_length=120)
+    requested_start_date: date
+    requested_end_date: date
     website: str = Field(default='', max_length=200)  # Honeypot; never shown to applicants.
 
     @field_validator('full_name', 'course_name')
@@ -26,6 +31,15 @@ class ApplicationInput(BaseModel):
         if not value:
             raise ValueError('This field is required.')
         return value
+
+    @model_validator(mode='after')
+    def check_certificate_details(self):
+        if self.requested_end_date < self.requested_start_date:
+            raise ValueError('Choose an end date on or after the start date.')
+        self.designation = self.designation.strip() if self.certificate_type == 'Internship Completion' else ''
+        if self.certificate_type == 'Internship Completion' and not self.designation:
+            raise ValueError('Enter your internship domain or role.')
+        return self
 
 
 class ApprovalInput(BaseModel):
@@ -92,7 +106,11 @@ def register(app, db, require_manager):
         if body.website:
             raise HTTPException(422, 'Could not submit this application.')
         try:
-            return db.rpc('submit_public_certificate_application', {'p_name': body.full_name, 'p_email': str(body.email).lower(), 'p_course': body.course_name}).execute().data
+            return db.rpc('submit_public_certificate_application_details', {
+                'p_name': body.full_name, 'p_email': str(body.email).lower(), 'p_course': body.course_name,
+                'p_type': body.certificate_type, 'p_domain': body.designation,
+                'p_start': body.requested_start_date.isoformat(), 'p_end': body.requested_end_date.isoformat(),
+            }).execute().data
         except Exception as error:
             if getattr(error, 'code', '') == 'P0001':
                 raise HTTPException(409, getattr(error, 'message', 'Application already exists.')) from None
@@ -101,7 +119,7 @@ def register(app, db, require_manager):
 
     @app.get('/api/admin/certificate-applications')
     def listing(_admin=Depends(require_manager)):
-        return db.table('certificate_applications').select('id,full_name,course_name,status,admin_note,document,email_status,email_sent_at,created_at,updated_at,certificate_applicants(email,student_code)').order('created_at', desc=True).execute().data
+        return db.table('certificate_applications').select('id,full_name,course_name,certificate_type,designation,requested_start_date,requested_end_date,status,admin_note,document,email_status,email_sent_at,created_at,updated_at,certificate_applicants(email,student_code)').order('created_at', desc=True).execute().data
 
     @app.post('/api/admin/certificate-applications/{application_id}/approve')
     def approve(application_id: UUID, body: ApprovalInput, _admin=Depends(require_manager)):

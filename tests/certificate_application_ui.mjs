@@ -14,14 +14,25 @@ try{
   await page.goto((process.env.APP_TEST_URL||'http://localhost:3000')+'/certificate-request',{waitUntil:'domcontentloaded',timeout:60000});
   await page.getByRole('heading',{name:'Apply for your certificate',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Continue with Google'}).count(),0);
-  await page.getByLabel('Full name',{exact:true}).fill('Former Student');
+  await page.getByRole('textbox',{name:/Full name/}).fill('former student');
   await page.getByLabel('Email address',{exact:true}).fill('former@example.com');
-  await page.getByLabel('Course name',{exact:true}).fill('Web Development');
+  await page.getByRole('textbox',{name:/Course name/}).fill('Web Development');
+  await page.getByLabel('Requested start date',{exact:true}).fill('2026-01-01');
+  await page.getByLabel('Requested end date',{exact:true}).fill('2026-06-30');
+  await page.getByRole('button',{name:/Internship completion/}).click();
+  await page.getByRole('textbox',{name:/Internship domain/}).fill('Developer Intern');
+  await page.getByRole('combobox',{name:/Title/}).selectOption('Ms.');
+  assert.equal(await page.getByRole('button',{name:/Internship completion/}).getAttribute('aria-pressed'),'true');
+  for(const width of [375,1280]){
+    await page.setViewportSize({width,height:900});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  }
+  await page.screenshot({path:'C:/Windows/Temp/lihatech-certificate-form.png',fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.getByRole('button',{name:'Submit application'}).click();
   await page.getByRole('heading',{name:'Application received'}).waitFor();
-  assert.deepEqual(submitted,{full_name:'Former Student',email:'former@example.com',course_name:'Web Development',website:''});
+  assert.deepEqual(submitted,{full_name:'Ms. Former Student',email:'former@example.com',course_name:'Web Development',certificate_type:'Internship Completion',designation:'Developer Intern',requested_start_date:'2026-01-01',requested_end_date:'2026-06-30',website:''});
   assert.match(await page.getByRole('status').innerText(),/LT-CERT-STU-100001/);
   assert.deepEqual(errors,[]);
-  console.log('Public route loads without sign-in; only name/email/course submitted; mobile layout and generated ID confirmation passed. API response mocked; no live email sent.');
+  console.log('Public form: no sign-in; internship choice, title/name normalization, dates, domain, email, mobile/desktop layout and ID confirmation passed. API response mocked.');
 }finally{await browser.close();}
