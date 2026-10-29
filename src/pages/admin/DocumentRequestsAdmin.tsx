@@ -2,7 +2,8 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { FileCheck2, RefreshCw, X } from 'lucide-react';
 import { rpc } from '../../lib/lms';
 import { requestStatus, requestTitle, type DocumentRequest } from '../../lib/documentRequests';
-import type { Certificate, Letter } from '../../types';
+import type { Certificate, Letter, CompanySettings } from '../../types';
+import PublicCertificateApplications from '../../components/lms/PublicCertificateApplications';
 import type { StudioRecord } from '../../lib/documentStudio';
 import type { RequestDocumentContent } from '../../lib/requestDocumentPreview';
 import ListFilters from '../../components/lms/ListFilters';
@@ -12,12 +13,13 @@ import '../../styles/lms.css';
 const DocumentPreviewDialog=React.lazy(()=>import('../../components/lms/RequestDocumentPreview').then(module=>({default:module.DocumentPreviewDialog})));
 type Document = Certificate | Letter;
 type Props = {
+  settings: CompanySettings;
   cachedRequests: DocumentRequest[] | null;
   onRequestsChange: (rows: DocumentRequest[]) => void;
   onIssued: (record: StudioRecord) => void;
   renderReview: (row: DocumentRequest, saved: Document | null, approve: (document: Document) => Promise<boolean>) => React.ReactNode;
 };
-export default function DocumentRequestsAdmin({cachedRequests,onRequestsChange,onIssued,renderReview}:Props) {
+export default function DocumentRequestsAdmin({settings,cachedRequests,onRequestsChange,onIssued,renderReview}:Props) {
   const [requests,setRequests]=useState<DocumentRequest[]>(cachedRequests||[]);
   const [filter,setFilter]=useState<'open'|'all'>('open');
   const [query,setQuery]=useState(''),[kindFilter,setKindFilter]=useState('all');
@@ -75,6 +77,7 @@ export default function DocumentRequestsAdmin({cachedRequests,onRequestsChange,o
     &&(kindFilter==='all'||row.kind===kindFilter)
     &&`${row.candidate_name} ${row.student_email} ${row.program_name} ${row.designation} ${row.batch_name||''}`.toLowerCase().includes(query.toLowerCase()));
   return <div className="admin-document-requests">
+    <PublicCertificateApplications settings={settings} renderReview={renderReview}/>
     <header className="request-admin-head"><div><p className="request-kicker">LEARNING OPERATIONS</p><h1>Document requests</h1><p>Open a request, check the preview and approve. The student receives the final PDF here.</p></div><button className="request-refresh" disabled={loading||busy} onClick={()=>void reload()}><RefreshCw size={17}/>{loading?'Refreshing…':'Refresh'}</button></header>
     {!selected&&error&&<p className="request-error" role="alert">{error}</p>}{notice&&<p className="request-notice" role="status">{notice}</p>}
     <div className="request-admin-toolbar"><div><button className={filter==='open'?'active':''} aria-pressed={filter==='open'} onClick={()=>setFilter('open')}>Needs action <span>{requests.filter(row=>['pending','approved'].includes(row.status)).length}</span></button><button className={filter==='all'?'active':''} aria-pressed={filter==='all'} onClick={()=>setFilter('all')}>All requests <span>{requests.length}</span></button></div></div>

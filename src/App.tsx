@@ -416,7 +416,7 @@ export default function App() {
           )}
 
           {path === '/team' && <LmsAdmin module="team" navigate={navigate} certificateCategories={db.settings.certificateCategories} />}
-          {(path === '/document-requests' || path === '/certificate-requests') && <DocumentRequestsAdmin cachedRequests={requestCache} onRequestsChange={setRequestCache} onIssued={acceptIssuedRecord} renderReview={(request,saved,approve)=>request.kind==='certificate'?
+          {(path === '/document-requests' || path === '/certificate-requests') && <DocumentRequestsAdmin settings={db.settings} cachedRequests={requestCache} onRequestsChange={setRequestCache} onIssued={acceptIssuedRecord} renderReview={(request,saved,approve)=>request.kind==='certificate'?
             <CertificateBuilder key={request.id} reviewMode requestDraft={request} editingCertificate={saved as Certificate|null} courses={db.courses} existingCertificates={db.certificates} settings={db.settings} onAddCertificateOption={handleAddCertificateOption} onSaveCertificate={approve} onSaveCourse={handleSaveCourse} onBack={()=>{}} navigate={()=>{}}/>:
             <LetterBuilder key={request.id} reviewMode requestDraft={request} editingLetter={saved as Letter|null} settings={db.settings} onSaveLetter={approve} onBack={()=>{}} navigate={()=>{}}/>
           }/>}

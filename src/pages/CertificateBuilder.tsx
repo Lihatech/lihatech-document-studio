@@ -134,7 +134,7 @@ export default function CertificateBuilder({
     } else {
       // Auto-generate unique ID
       const existing = existingCertificates.map(c => c.certificateId);
-      setCertificateId(generateCertificateId(existing));
+      setCertificateId(requestDraft?.certificate_number || generateCertificateId(existing));
       setPresentationText(DEFAULT_PRESENTATION_TEXT);
       setDateLineText('');
       setProgramFontSize(0);

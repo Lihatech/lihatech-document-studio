@@ -105,6 +105,13 @@ def require_manager(user: Annotated[dict, Depends(verify_firebase_user)]) -> dic
     return {**user, "staff_role": profiles[0]["role"]}
 
 
+if __package__:
+    from . import certificate_applications
+else:
+    import certificate_applications
+certificate_applications.register(app, supabase, require_manager)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}

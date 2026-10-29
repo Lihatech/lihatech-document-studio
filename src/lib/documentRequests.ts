@@ -10,6 +10,7 @@ export type DocumentRequest = {
   start_date: string | null;
   end_date: string | null;
   student_code?: string;
+  certificate_number?: string;
   requested_start_date?: string | null;
   requested_end_date?: string | null;
   details: string;

@@ -56,7 +56,17 @@ The frontend API helper lives in `src/lib/lmsApi.ts` and attaches the current Fi
 
 The team page creates a pending invitation without sending email. Share the app URL yourself. The invitee signs in with Google using the exact invited email; FastAPI verifies the Firebase ID token and atomically creates their active staff profile. Invites expire after seven days. Owners can invite admins or instructors; admins can invite instructors.
 
-## Supabase foundation
+## Public certificate applications
+
+`/certificate-request` is a public form accepting full name, email and completed course. It creates a separate certificate applicant ID; it never creates an LMS account or batch enrollment. Admins review these in the **Public certificate applications** section of `/certificate-requests` and use the existing certificate editor. Approval saves the PDF and sends it as an email attachment. A failed email can be retried from the list without approving again.
+
+Apply `supabase/migrations/20261104000000_public_certificate_applications.sql` in Supabase SQL Editor after the existing migrations. These tables are private: only the authenticated admin API can read applications; public submissions go through the validated API. Configure the existing backend Firebase and Supabase server credentials, plus `HOSTINGER_SMTP_USER` (your full info@ mailbox) and `HOSTINGER_SMTP_PASSWORD` (mailbox password). Never prefix server credentials with `VITE_`.
+
+For local development, put server settings in `backend/.env`, run `uvicorn backend.main:app --port 8000`, then `npm run dev` in another terminal. Vite proxies `/api` to port 8000. Vercel uses the existing Python API entry point and API rewrites; add the same server settings in Vercel environment variables. Until the migration and SMTP credentials are configured, submissions/email will not work.
+
+Checks: `npm run lint`, `npm run build`, `node tests/certificate_application_ui.mjs` (Vite running), and `.venv/Scripts/python -m unittest discover -s tests -p test_certificate_applications.py`. UI tests mock submission; email tests mock SMTP and do not send mail.
+
+## Supabase configuration
 
 Company settings (including compressed logo, signature, stamp, and partner images) are saved in the protected `company_settings` table and loaded after admin sign-in. Upload images in Settings and press Save; success appears only after Supabase accepts the save. The same branding is then available to authorized staff on other devices. Apply the existing Supabase migrations and configure Firebase third-party authentication before deploying this change. Browser storage is only a cache, not the shared source of truth.
 
