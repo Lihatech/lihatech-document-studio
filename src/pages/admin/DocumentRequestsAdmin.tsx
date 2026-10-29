@@ -5,6 +5,7 @@ import { requestStatus, requestTitle, type DocumentRequest } from '../../lib/doc
 import type { Certificate, Letter } from '../../types';
 import type { StudioRecord } from '../../lib/documentStudio';
 import type { RequestDocumentContent } from '../../lib/requestDocumentPreview';
+import { sendCertificateEmail } from '../../lib/certificateEmail';
 import ListFilters from '../../components/lms/ListFilters';
 import '../../styles/documentRequests.css';
 import '../../styles/lms.css';
@@ -55,7 +56,23 @@ export default function DocumentRequestsAdmin({cachedRequests,onRequestsChange,o
         p_expected_version:selected.row.studio_version||0,p_note:note,
       });
       replaceRequests(requests.map(row=>row.id===result.request.id?result.request:row));
-      onIssued(result.record);setSelected(null);setNotice('Approved and sent. The student can now preview and download the PDF.');
+      onIssued(result.record);setSelected(null);
+      if (result.request.kind === 'certificate' && result.request.student_email) {
+        try {
+          await sendCertificateEmail({
+            to: result.request.student_email,
+            studentName: result.request.candidate_name,
+            courseName: result.request.program_name,
+            studentId: result.request.student_code,
+          });
+          setNotice('Approved. The student can download the PDF and an email was sent.');
+        } catch (emailError) {
+          console.error('Certificate approved but email delivery failed.', emailError);
+          setNotice('Approved. The student can download the PDF, but the notification email could not be sent.');
+        }
+      } else {
+        setNotice('Approved. The student can now preview and download the PDF.');
+      }
       return true;
     } catch(e){setError(e instanceof Error?e.message:'Approval failed. Nothing was issued. Please try again.');return false;}
     finally{inFlight.current=false;setBusy(false);}

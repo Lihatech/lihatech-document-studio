@@ -6,6 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+!.env.hostinger.example
 !backend/.env.example
 backend/env.txt
 __pycache__/
@@ -17,3 +18,4 @@ __pycache__/
 /mock-calendar-review.js
 /mock-calendar-review.css
 .venv/
+.vercel/
