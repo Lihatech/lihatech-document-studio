@@ -34,7 +34,25 @@ async function waitForCertificateAssets(element: HTMLElement) {
 export async function captureCertificate(element: HTMLElement) {
   await waitForCertificateAssets(element);
 
+  // Resolve SVG gradients with the browser before html2canvas clones an offscreen sheet.
+  // The exact same raster badge is then used by normal, approval and correction exports.
+  const badges = await Promise.all(Array.from(element.querySelectorAll<HTMLImageElement>('img[data-certificate-badge]')).map(async (image) => {
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth * 3;
+    canvas.height = image.naturalHeight * 3;
+    const context = canvas.getContext('2d');
+    if (!context || !canvas.width || !canvas.height) throw new Error('Could not prepare the certificate badge. Please retry.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  }));
+
   return html2canvas(element, {
+    onclone: (_clonedDocument: Document, sheet: HTMLElement) => {
+      sheet.querySelectorAll<HTMLImageElement>('img[data-certificate-badge]').forEach((image, index) => {
+        image.src = badges[index];
+      });
+    },
     scale: CERTIFICATE_RENDER_SCALE,
     useCORS: true,
     allowTaint: false,

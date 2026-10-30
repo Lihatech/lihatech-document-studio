@@ -179,7 +179,7 @@ export default async function safeHtml2Canvas(element: HTMLElement, options: any
   const originalOnClone = options.onclone;
   const safeOptions = {
     ...options,
-    onclone: (clonedDocument: Document) => {
+    onclone: (clonedDocument: Document, clonedElement: HTMLElement) => {
       try {
         // Rewrite inline style tags
         const styles = clonedDocument.querySelectorAll('style');
@@ -218,7 +218,7 @@ export default async function safeHtml2Canvas(element: HTMLElement, options: any
       }
       
       if (originalOnClone) {
-        originalOnClone(clonedDocument);
+        return originalOnClone(clonedDocument, clonedElement);
       }
     }
   };

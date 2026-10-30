@@ -13,12 +13,16 @@ const certificate={id:'badge-test',certificateId:'LT-CERT-123456789ABC',studentI
 createRoot(document.getElementById('root')).render(<><section id="royal"><CertificatePreview certificate={{...certificate,designTemplate:'royal'}} settings={settings} showActions={false} renderOnlySheet/></section><section id="emerald"><CertificatePreview certificate={{...certificate,designTemplate:'emerald'}} settings={settings} showActions={false} renderOnlySheet/></section></>);
 window.captureBadge=async(template)=>{
  const sheet=document.querySelector('#'+template+'>div');const seal=sheet.querySelector('[data-certificate-badge="seal"]');
+ seal.parentElement.style.transform='none';await seal.decode();
  const bounds=seal.getBoundingClientRect(),sheetBounds=sheet.getBoundingClientRect();
  const canvas=await captureCertificate(sheet);const scale=canvas.width/sheetBounds.width;
  const pixels=canvas.getContext('2d').getImageData(Math.round((bounds.left-sheetBounds.left)*scale),Math.round((bounds.top-sheetBounds.top)*scale),Math.round(bounds.width*scale),Math.round(bounds.height*scale)).data;
+ const reference=document.createElement('canvas');reference.width=Math.round(bounds.width*scale);reference.height=Math.round(bounds.height*scale);reference.getContext('2d').drawImage(seal,0,0,reference.width,reference.height);
+ const expected=reference.getContext('2d').getImageData(0,0,reference.width,reference.height).data;
+ let expectedGold=0,matchedGold=0;for(let i=0;i<expected.length;i+=4)if(expected[i+3]>240&&expected[i]>140&&expected[i+1]>100&&expected[i+2]<expected[i+1]*.8&&expected[i]>expected[i+1]*1.05){expectedGold++;if(pixels[i]>140&&pixels[i+1]>100&&pixels[i+2]<pixels[i+1]*.8&&pixels[i]>pixels[i+1]*1.05)matchedGold++;}
  let gold=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]>140&&pixels[i+1]>100&&pixels[i+2]<pixels[i+1]*.8&&pixels[i]>pixels[i+1]*1.05)gold++;
  const {pdfBlob}=await createCertificatePdf(canvas,{includePreview:false});canvas.id='captured-certificate';canvas.style.width='1123px';canvas.style.height='794px';document.getElementById('captured-certificate')?.remove();document.body.appendChild(canvas);
- return {gold,pdfSize:pdfBlob.size};
+ return {gold,sealMatch:matchedGold/expectedGold,pdfSize:pdfBlob.size};
 };
 window.openCorrectionDialog=()=>{const dialog=document.createElement('dialog');dialog.innerHTML='<p>Correction review is open</p>';document.body.appendChild(dialog);dialog.showModal();for(const id of ['royal','emerald']){const sheet=document.getElementById(id);sheet.style.position='absolute';sheet.style.left='-15000px';sheet.style.top='0';}};`;
 const bundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'esm',minify:true,loader:{'.png':'dataurl','.svg':'dataurl'},define:{'import.meta.env':'{}'}});
@@ -33,12 +37,16 @@ try{
  for(const template of ['royal','emerald']){
   const result=await page.evaluate(template=>window.captureBadge(template),template);
   assert.ok(result.gold>500,template+' badge gold seal must survive PDF rasterization: '+JSON.stringify(result));assert.ok(result.pdfSize>10000);
+  assert.ok(result.sealMatch>.85,template+' PDF must match the actual badge, not gold pixels from the background: '+JSON.stringify(result));
   await page.locator('#captured-certificate').screenshot({path:'C:/Windows/Temp/lihatech-'+template+'-badge-export.png'});
  }
  await page.evaluate(()=>window.openCorrectionDialog());
  for(const template of ['royal','emerald']){
   const result=await page.evaluate(template=>window.captureBadge(template),template);
   assert.ok(result.gold>500,template+' hidden export behind correction dialog must retain the badge: '+JSON.stringify(result));
+  assert.ok(result.sealMatch>.85,template+' hidden PDF must match the original badge: '+JSON.stringify(result));
  }
+ await page.locator('#royal img[data-certificate-badge]').evaluate(image=>{image.src='data:image/png;base64,invalid';});
+ await assert.rejects(page.evaluate(()=>window.captureBadge('royal')),/decode|decoded|encoding/i,'A broken badge must fail export instead of producing an incomplete certificate');
  assert.deepEqual(errors,[]);console.log('Royal/emerald badges retain gold seal in normal and hidden modal exports using self-contained images. No email sent.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
