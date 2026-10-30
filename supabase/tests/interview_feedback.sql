@@ -43,5 +43,16 @@ do $$ declare bid uuid:='35000000-0000-4000-8000-000000000031'; row jsonb; begin
  perform pg_temp.feedback_claims('feedback-student');
  if not exists(select 1 from jsonb_array_elements(public.lms_notifications()->'items') n where n->>'title'='Interview feedback updated') then
    raise exception 'Feedback update notification missing'; end if;
+ perform pg_temp.feedback_claims('feedback-other');
+ begin
+   perform public.lms_admin_send_interview_feedback(bid,'Not allowed');
+   raise exception 'Student was allowed to send feedback';
+ exception when insufficient_privilege then null; end;
+ perform pg_temp.feedback_claims('feedback-admin');
+ perform public.lms_admin_send_interview_feedback(bid,'Simple feedback');
+ perform pg_temp.feedback_claims('feedback-student');
+ row:=public.lms_student_home()->'bookings'->0;
+ if row->>'feedback'<>'Simple feedback' or row->>'status'<>'completed' then
+   raise exception 'Send did not preserve the interview status: %',row; end if;
 end $$;
 rollback;
