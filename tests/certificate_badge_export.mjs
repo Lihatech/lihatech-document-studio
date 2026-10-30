@@ -13,7 +13,7 @@ const certificate={id:'badge-test',certificateId:'LT-CERT-123456789ABC',studentI
 createRoot(document.getElementById('root')).render(<><section id="royal"><CertificatePreview certificate={{...certificate,designTemplate:'royal'}} settings={settings} showActions={false} renderOnlySheet/></section><section id="emerald"><CertificatePreview certificate={{...certificate,designTemplate:'emerald'}} settings={settings} showActions={false} renderOnlySheet/></section></>);
 window.captureBadge=async(template)=>{
  const sheet=document.querySelector('#'+template+'>div');const seal=sheet.querySelector('[data-certificate-badge="seal"]');
- seal.parentElement.style.transform='none';await seal.decode();
+ seal.parentElement.style.transform='none';
  const bounds=seal.getBoundingClientRect(),sheetBounds=sheet.getBoundingClientRect();
  const canvas=await captureCertificate(sheet);const scale=canvas.width/sheetBounds.width;
  const pixels=canvas.getContext('2d').getImageData(Math.round((bounds.left-sheetBounds.left)*scale),Math.round((bounds.top-sheetBounds.top)*scale),Math.round(bounds.width*scale),Math.round(bounds.height*scale)).data;
