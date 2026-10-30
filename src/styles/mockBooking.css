@@ -134,6 +134,17 @@
 .student-portal .booking-feedback-score span { color:var(--muted); font-size:12px; }
 .student-portal .booking-feedback-text,.student-portal .booking-feedback-empty { margin:12px 0 0; white-space:pre-wrap; color:var(--ink); font-size:13px; line-height:1.6; }
 .student-portal .booking-feedback-empty { color:var(--muted); font-style:italic; }
+.student-portal .booking-feedback-preview { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; margin:12px 0; color:var(--ink); font-size:13px; line-height:1.6; white-space:pre-wrap; }
+.student-portal .booking-feedback-open { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:44px; padding:10px 12px; border:1px solid #b9dbe3; border-radius:8px; background:#fff; color:#07567d; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.student-portal .booking-feedback-open:hover { background:#e8f5f7; }
+.student-portal .booking-feedback-open:focus-visible,.student-portal .booking-feedback-dialog button:focus-visible { outline:2px solid #087f73; outline-offset:3px; }
+.student-portal .booking-feedback-dialog { box-sizing:border-box; width:min(640px,calc(100vw - 32px)); max-width:none; max-height:calc(100dvh - 32px); margin:auto; padding:24px; overflow-y:auto; border:1px solid #d7e6eb; border-radius:16px; background:#fff; color:var(--ink); box-shadow:0 26px 80px rgba(4,31,55,.25); }
+.student-portal .booking-feedback-dialog::backdrop { background:rgba(4,31,55,.65); }
+.student-portal .booking-feedback-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.student-portal .booking-feedback-dialog h3 { margin:0; font-size:21px; }
+.student-portal .booking-feedback-dialog button { flex:none; min-height:44px; padding:9px 14px; border:1px solid #b9dbe3; border-radius:8px; background:#fff; color:#07567d; font:inherit; cursor:pointer; }
+.student-portal .booking-feedback-meta { margin:12px 0 0; color:var(--muted); font-size:13px; line-height:1.6; }
+.student-portal .booking-feedback-full { margin-top:20px; padding-top:20px; border-top:1px solid #d7e6eb; white-space:pre-wrap; overflow-wrap:anywhere; font-size:15px; line-height:1.8; }
 @media(max-width:1040px) { .student-portal .booking-hero { align-items:start; flex-direction:column; } .student-portal .booking-workspace { grid-template-columns:280px minmax(0,1fr); } .student-portal .booking-time-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:760px) { .student-portal .booking-workspace { grid-template-columns:1fr; } .student-portal .booking-hero { padding:24px; } .student-portal .booking-date-panel,.student-portal .booking-time-panel,.student-portal .booking-upcoming { padding:18px; } }
 @media(max-width:500px) { .student-portal .booking-hero { padding:20px; } .student-portal .booking-steps { gap:5px; } .student-portal .booking-steps span { font-size:11px; padding:6px 8px; } .student-portal .booking-confirm-actions { flex-direction:column-reverse; } .student-portal .booking-confirm-actions button { width:100%; } .student-portal .booking-available-head { align-items:start; flex-direction:column; gap:3px; } .student-portal .booking-interview>div { width:100%; margin-left:0; } }
