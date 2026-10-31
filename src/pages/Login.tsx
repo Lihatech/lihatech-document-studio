@@ -60,7 +60,6 @@ export default function Login({ authError = '' }: LoginProps) {
           </section>
 
           <nav aria-label="Public information" className="mt-6 flex flex-wrap justify-center gap-2 text-sm text-[#07547e]">
-            <a href="/certificate-request" className="inline-flex min-h-11 items-center rounded-lg px-3 underline-offset-4 hover:underline">Apply for a certificate</a>
             <a href="/about.html" className="inline-flex min-h-11 items-center rounded-lg px-3 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#07547e]">About</a>
             <a href="/privacy.html" className="inline-flex min-h-11 items-center rounded-lg px-3 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#07547e]">Privacy Policy</a>
             <a href="/terms.html" className="inline-flex min-h-11 items-center rounded-lg px-3 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#07547e]">Terms of Use</a>

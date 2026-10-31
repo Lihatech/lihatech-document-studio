@@ -12,17 +12,36 @@ export default function MaterialsManager({data,reload}:{data:Data;reload:()=>Pro
   const [query,setQuery]=useState(''),[batch,setBatch]=useState('all'),[selected,setSelected]=useState<string[]>([]);
   const [editing,setEditing]=useState<Row|null|undefined>(undefined),[sharing,setSharing]=useState<string[]|null>(null);
   const [error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [deleting,setDeleting]=useState(false),[cleanupPath,setCleanupPath]=useState<string|null>(null);
+  async function cleanupFile(path:string){
+    if(!supabase)throw new Error('Supabase is not configured.');
+    const result=await supabase.storage.from('lms-materials').remove([path]);
+    if(result.error)throw result.error;
+    setCleanupPath(null);
+  }
+  async function deleteDocument(row:Row){
+    if(deleting||!await confirmAction(`Delete “${row.title}”? This removes the document, its uploaded file and access for every batch. This cannot be undone.`,'Delete document'))return;
+    setDeleting(true);setError('');setNotice('');
+    try{
+      const path=await rpc<string|null>('lms_admin_delete_material',{p_material:row.id});
+      setSelected(ids=>ids.filter(id=>id!==row.id));
+      setNotice('Document deleted.');
+      if(path){setCleanupPath(path);try{await cleanupFile(path);}catch{setError('Document deleted, but the uploaded file could not be removed. Retry file cleanup below.');}}
+      await reload();
+    }catch(e){setError(message(e));}finally{setDeleting(false);}
+  }
   const rows=(data.learning_materials??[]).filter(row=>`${row.title} ${row.module_name}`.toLowerCase().includes(query.toLowerCase())&&(batch==='all'||(data.batch_materials??[]).some(link=>link.material_id===row.id&&link.batch_id===batch)));
   async function done(){setError('');setEditing(undefined);setSharing(null);setSelected([]);setNotice('Document and batch access saved.');await reload();}
   async function unpublish(link:Row){if(!await confirmAction('Remove this document from this batch? Other batches will keep their access.','Remove access'))return;setError('');try{await removeAssignment('batch_materials',{batch_id:link.batch_id,material_id:link.material_id});await reload();}catch(e){setError(message(e));}}
   return <>
     <div className="lms-toolbar"><label>Search documents<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Title or section"/></label><label>Batch access<select aria-label="Batch access" value={batch} onChange={e=>{setBatch(e.target.value);setSelected([]);}}><option value="all">All uploaded documents</option>{data.batches?.map(b=><option key={b.id} value={b.id}>{b.name} · {b.code}</option>)}</select></label><button className="studio-secondary" onClick={()=>void reload()}>Refresh</button><button className="studio-primary" onClick={()=>setEditing(null)}><Upload size={17}/> Upload document</button></div>
     {error&&<p role="alert" className="lms-error">{error}</p>}{notice&&<p role="status" className="lms-status">{notice}</p>}
+    {cleanupPath&&<button type="button" className="studio-secondary" disabled={deleting} onClick={async()=>{setDeleting(true);try{await cleanupFile(cleanupPath);setError('');setNotice('Document and uploaded file deleted.');}catch(e){setError(message(e));}finally{setDeleting(false);}}}>Retry file cleanup</button>}
     <div className="lms-actions lms-selection-bar"><label><input type="checkbox" checked={rows.length>0&&rows.every(row=>selected.includes(row.id))} onChange={e=>setSelected(e.target.checked?rows.map(row=>row.id):[])}/> Select all {rows.length} documents</label><button className="studio-primary" disabled={!selected.length} onClick={()=>setSharing(selected)}>Publish selected ({selected.length})</button><p>Select documents from batch A, then publish them to batch B in one step.</p></div>
     <div className="lms-material-grid">{rows.map(row=>{const links=(data.batch_materials??[]).filter(link=>link.material_id===row.id);return <article className="lms-material-card" key={row.id}>
       <div className="lms-material-top"><label className="lms-select-resource"><input aria-label={`Select ${row.title}`} type="checkbox" checked={selected.includes(row.id)} onChange={e=>setSelected(ids=>e.target.checked?[...ids,row.id]:ids.filter(id=>id!==row.id))}/>{row.kind==='file'?<FileUp size={20}/>:<Link2 size={20}/>}</label><span className="lms-pill">{row.status==='hidden'?'Hidden':links.length?'Published':'Not shared'}</span></div><h2>{row.title}</h2><p>{row.description||'No description'}</p><small>{row.module_name||'General'} · {row.kind==='file'?'Private file':'Web link'}</small>
       <div className="lms-resource-access"><strong>Batch access</strong>{links.length?links.map(link=><div key={link.batch_id}><span>{data.batches?.find(b=>b.id===link.batch_id)?.name||'Batch'}<small>{displayDate(link.available_from)} → {link.expires_at?displayDate(link.expires_at):'Batch end'}</small></span><button className="lms-text-button" onClick={()=>void unpublish(link)}>Unpublish</button></div>):<p>No batches yet</p>}</div>
-      <div className="lms-row-actions"><button className="studio-primary" onClick={()=>setSharing([row.id])}>Publish to batches</button><button className="studio-secondary" onClick={()=>setEditing(row)}>Edit document</button></div>
+      <div className="lms-row-actions"><button className="studio-primary" disabled={deleting} onClick={()=>setSharing([row.id])}>Publish to batches</button><button className="studio-secondary" disabled={deleting} onClick={()=>setEditing(row)}>Edit document</button><button type="button" className="lms-danger-button" disabled={deleting||!!cleanupPath} onClick={()=>void deleteDocument(row)}>Delete document</button></div>
     </article>;})}</div>{!rows.length&&<p className="lms-panel">No documents found. Upload a file or add a link to begin.</p>}
     {editing!==undefined&&<MaterialEditor material={editing} data={data} onClose={()=>{setEditing(undefined);void reload();}} onDone={done}/>}
     {sharing&&<PublishMaterialsDialog data={data} materialIds={sharing} onClose={()=>setSharing(null)} onDone={done}/>}

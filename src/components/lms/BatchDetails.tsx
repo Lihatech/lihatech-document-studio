@@ -5,13 +5,13 @@ import { batchState } from '../../lib/batches';
 
 type Props = {
   key?: string; batch: Row; data: Record<string, Row[]>; busy: boolean;
-  onClose: () => void; onEdit: () => void;
+  onClose: () => void; onEdit: () => void; onDelete: () => void;
   onEnrollment: (row?: Row) => void; onRemoveStudent: (row: Row) => void;
   onMaterial: (row?: Row) => void; onRemoveMaterial: (row: Row) => void;
   onAddStudent?:()=>void; onImport?:()=>void; onEditStudent?:(student:Row)=>void; onDeleteStudent?:(student:Row)=>void; initialTab?:string;
 };
 
-export default function BatchDetails({batch,data,busy,onClose,onEdit,onEnrollment,onRemoveStudent,onMaterial,onRemoveMaterial,onAddStudent,onImport,onEditStudent,onDeleteStudent,initialTab='students'}:Props) {
+export default function BatchDetails({batch,data,busy,onClose,onEdit,onDelete,onEnrollment,onRemoveStudent,onMaterial,onRemoveMaterial,onAddStudent,onImport,onEditStudent,onDeleteStudent,initialTab='students'}:Props) {
   const [tab,setTab]=useState(initialTab);
   const [studentQuery,setStudentQuery]=useState(''),[accessFilter,setAccessFilter]=useState('all');
   const members=(data.batch_students??[]).filter(r=>r.batch_id===batch.id);
@@ -20,7 +20,7 @@ export default function BatchDetails({batch,data,busy,onClose,onEdit,onEnrollmen
   const ready=!!batch.course_name?.trim()&&!!batch.start_date&&!!batch.end_date;
   const tabs=[{id:'overview',label:'Overview',icon:FileText},{id:'students',label:`Students (${members.length})`,icon:Users},{id:'materials',label:`Materials (${materials.length})`,icon:BookOpen}];
   return <section className="lms-panel lms-detail batch-detail">
-    <div className="batch-detail-heading"><div><button className="lms-back" onClick={onClose}><ArrowLeft size={16}/> All batches</button><div className="batch-title-line"><h2>{batch.name}</h2><span className={`lms-pill ${batchState(batch)==='active'?'is-active':'is-muted'}`}>{batchState(batch)}</span></div><p>{batch.code} · {batch.course_name||'Add a course to finish setting up this batch'}</p></div><button className="studio-primary" onClick={onEdit}><Pencil size={16}/> Edit batch settings</button></div>
+    <div className="batch-detail-heading"><div><button className="lms-back" onClick={onClose}><ArrowLeft size={16}/> All batches</button><div className="batch-title-line"><h2>{batch.name}</h2><span className={`lms-pill ${batchState(batch)==='active'?'is-active':'is-muted'}`}>{batchState(batch)}</span></div><p>{batch.code} · {batch.course_name||'Add a course to finish setting up this batch'}</p></div><div className="lms-row-actions"><button className="studio-primary" disabled={busy} onClick={onEdit}><Pencil size={16}/> Edit batch settings</button><button type="button" className="lms-danger-button" disabled={busy} onClick={onDelete}>Delete batch</button></div></div>
     <nav className="batch-tabs" aria-label="Batch sections">{tabs.map(({id,label,icon:Icon})=><button key={id} aria-current={tab===id?'page':undefined} onClick={()=>setTab(id)}><Icon size={17}/>{label}</button>)}</nav>
     {tab==='overview' && <div className="batch-overview">
       <section className="batch-info-card"><div className="batch-section-title"><span className="lms-group-icon"><FileText size={20}/></span><div><h3>Course & documents</h3><p>Official details for student requests</p></div></div><dl className="batch-facts"><div><dt>Course / programme</dt><dd>{batch.course_name||'Not configured'}</dd></div><div><dt>Completion requests</dt><dd>Course or internship completion</dd></div></dl><div className={`batch-readiness ${ready?'is-ready':''}`}><CheckCircle2 size={18}/><span>{ready?'Certificate requests are configured.':'Add the course name and batch dates to enable certificate requests.'}</span></div><button className="lms-text-button" onClick={onEdit}>Edit course & document details <Pencil size={15}/></button></section>
