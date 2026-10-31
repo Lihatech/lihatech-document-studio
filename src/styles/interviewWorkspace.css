@@ -1,5 +1,17 @@
 /* Interview presentation only: booking and review actions retain their existing handlers. */
-.admin-interview-workspace { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; align-items:start; }
+.admin-interview-workspace { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:22px; align-items:start; }
+.admin-interview-workspace>.admin-calendar-month { grid-column:1; grid-row:1; }
+.admin-interview-workspace>.admin-calendar-priority-agenda { grid-column:2; grid-row:1; }
+.interview-toolbar-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.interview-history-launcher button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 14px; border:1px solid var(--ac-line); border-radius:9px; background:var(--ac-surface); color:var(--ac-accent); font-size:13px; font-weight:700; }
+.interview-history-modal { display:block; }
+.interview-history-modal .interview-stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.admin-availability-disclosure { grid-column:1/-1; min-width:0; border:1px solid var(--ac-line); border-radius:12px; background:var(--ac-surface); }
+.admin-availability-disclosure>summary { display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:52px; padding:14px 20px; list-style:none; color:var(--ac-muted); font-weight:650; cursor:pointer; }
+.admin-availability-disclosure>summary::-webkit-details-marker { display:none; }
+.admin-availability-disclosure>summary>span { display:flex; align-items:center; gap:8px; }
+.admin-availability-disclosure[open]>summary>svg { transform:rotate(180deg); }
+.admin-availability-disclosure .admin-calendar-availability { border:0; border-top:1px solid var(--ac-line); border-radius:0 0 12px 12px; }
 .admin-interview-workspace>section { min-width:0; }
 .interview-workspace-filters { display:grid; grid-template-columns:repeat(2,minmax(130px,1fr)) minmax(160px,1.4fr) minmax(140px,1fr) auto; gap:12px; align-items:end; }
 .interview-workspace-filters label,.interview-history-filters label,.interview-history-search { display:grid; gap:6px; color:var(--ac-muted); font-size:12px; font-weight:650; min-width:0; }
@@ -21,10 +33,6 @@
 .interview-card-tools:empty { display:none; }
 .interview-card-tools button { min-height:40px; }
 .interview-card-batch { margin:9px 14px 0; color:var(--ac-muted); font-size:12px; overflow-wrap:anywhere; }
-.admin-interview-history { background:var(--ac-surface); border:1px solid var(--ac-line); border-radius:16px; padding:24px; }
-.interview-history-toggle { display:flex; justify-content:space-between; align-items:center; gap:12px; list-style:none; min-height:48px; padding:12px 14px; border:1px solid var(--ac-line); border-radius:9px; background:var(--ac-soft); color:var(--ac-accent); cursor:pointer; font-size:14px; font-weight:700; }
-.interview-history-toggle::-webkit-details-marker { display:none; }
-details[open]>.interview-history-toggle svg { transform:rotate(180deg); }
 .interview-history-note { margin:12px 0; font-size:12px; color:var(--ac-muted); line-height:1.6; }
 .interview-history-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:14px 0; }
 .interview-stat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:14px 0; }
@@ -64,6 +72,7 @@ details[open]>.interview-history-toggle svg { transform:rotate(180deg); }
 .student-portal .booking .booking-date-markers .pending,.student-portal .booking .booking-date-key .pending { background:#d58c16; }
 .student-portal .booking .booking-workspace .booking-time-panel .interview-times { max-height:660px; overflow:auto; }
 .student-portal .booking-history-toggle:focus-visible { outline:2px solid #087f73; outline-offset:4px; }
-@media(max-width:1200px) { .interview-workspace-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }.interview-request-shortcut { justify-self:start; }.admin-interview-workspace { gap:16px; } }
-@media(max-width:950px) { .admin-interview-workspace,.student-portal .booking .booking-workspace { grid-template-columns:1fr; }.admin-calendar-availability .interview-times,.student-portal .booking .booking-workspace .booking-time-panel .interview-times { max-height:460px; } }
-@media(max-width:600px) { .interview-workspace-filters { grid-template-columns:1fr; }.interview-request-shortcut { justify-self:stretch; }.admin-interview-history,.student-portal .booking-history-panel,.student-portal .booking-day-agenda { padding:16px; }.admin-calendar-request-count { font-size:9px; align-self:center; }.interview-history-filters { grid-template-columns:1fr; }.admin-interview-workspace .admin-calendar-day { min-height:86px; } }
+@media(max-width:1200px) { .interview-toolbar-actions { grid-column:1/-1; justify-content:space-between; }.interview-workspace-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }.interview-request-shortcut { justify-self:start; }.admin-interview-workspace { gap:16px; } }
+@media(max-width:950px) { .admin-interview-workspace,.student-portal .booking .booking-workspace { grid-template-columns:1fr; }.admin-interview-workspace>.admin-calendar-month,.admin-interview-workspace>.admin-calendar-priority-agenda { grid-column:auto; grid-row:auto; }.admin-calendar-availability .interview-times,.student-portal .booking .booking-workspace .booking-time-panel .interview-times { max-height:460px; } }
+@media(max-width:600px) { .interview-history-modal .interview-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.interview-toolbar-actions,.interview-history-launcher,.interview-history-launcher button { width:100%; } }
+@media(max-width:600px) { .interview-workspace-filters { grid-template-columns:1fr; }.interview-request-shortcut { justify-self:stretch; }.student-portal .booking-history-panel,.student-portal .booking-day-agenda { padding:16px; }.admin-calendar-request-count { font-size:9px; align-self:center; }.interview-history-filters { grid-template-columns:1fr; }.admin-interview-workspace .admin-calendar-day { min-height:86px; } }
