@@ -1,0 +1,69 @@
+/* Interview presentation only: booking and review actions retain their existing handlers. */
+.admin-interview-workspace { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; align-items:start; }
+.admin-interview-workspace>section { min-width:0; }
+.interview-workspace-filters { display:grid; grid-template-columns:repeat(2,minmax(130px,1fr)) minmax(160px,1.4fr) minmax(140px,1fr) auto; gap:12px; align-items:end; }
+.interview-workspace-filters label,.interview-history-filters label,.interview-history-search { display:grid; gap:6px; color:var(--ac-muted); font-size:12px; font-weight:650; min-width:0; }
+.interview-workspace-filters input,.interview-workspace-filters select,.interview-history-filters input,.interview-history-filters select,.interview-history-search input,.interview-history-search select { width:100%; min-width:0; min-height:44px; border:1px solid var(--ac-line); border-radius:9px; padding:9px 10px; color:var(--ac-ink); background:var(--ac-surface); }
+.interview-request-shortcut { min-height:44px; display:flex; align-items:center; justify-content:center; gap:10px; padding:10px 14px; border:1px solid #e5ad43; border-radius:9px; color:#805000; background:#fff5d9; font-size:13px!important; font-weight:700; }
+.interview-request-shortcut strong { border-radius:6px; padding:1px 7px; background:#ffe3a4; }
+.availability-request-tag { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:48px; padding:10px 12px; margin:12px 0; border:1px solid #e5ad43; border-radius:9px; text-align:left; font-size:12px!important; }
+.availability-request-tag>span:last-child { display:flex; align-items:center; gap:4px; flex-shrink:0; font-weight:700; }
+.admin-calendar .request { color:#805000; background:#fff5d9; }
+.admin-calendar .history { color:#586779; background:#f0f3f7; }
+.admin-calendar-event.request { border-color:#e5ad43; border-left-width:4px; }
+.admin-calendar-request-count { font-size:10px; font-weight:800; color:#805000; background:#ffe3a4; padding:2px 4px; border-radius:4px; align-self:start; }
+.admin-interview-workspace .admin-calendar-day { min-height:88px; padding:8px 4px; gap:4px; }
+.admin-interview-workspace .admin-calendar-nav { margin-bottom:12px; }
+.admin-interview-workspace .admin-calendar-nav h2 { font-size:22px; }
+.admin-interview-workspace .admin-calendar-day-layout { grid-template-columns:1fr; gap:24px; }
+.admin-calendar-availability .interview-times { max-height:660px; overflow-y:auto; padding-right:4px; }
+.interview-card-tools { display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px 0; }
+.interview-card-tools:empty { display:none; }
+.interview-card-tools button { min-height:40px; }
+.interview-card-batch { margin:9px 14px 0; color:var(--ac-muted); font-size:12px; overflow-wrap:anywhere; }
+.admin-interview-history { background:var(--ac-surface); border:1px solid var(--ac-line); border-radius:16px; padding:24px; }
+.interview-history-toggle { display:flex; justify-content:space-between; align-items:center; gap:12px; list-style:none; min-height:48px; padding:12px 14px; border:1px solid var(--ac-line); border-radius:9px; background:var(--ac-soft); color:var(--ac-accent); cursor:pointer; font-size:14px; font-weight:700; }
+.interview-history-toggle::-webkit-details-marker { display:none; }
+details[open]>.interview-history-toggle svg { transform:rotate(180deg); }
+.interview-history-note { margin:12px 0; font-size:12px; color:var(--ac-muted); line-height:1.6; }
+.interview-history-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:14px 0; }
+.interview-stat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:14px 0; }
+.interview-stat-grid button { display:grid; text-align:left; gap:3px; padding:12px; min-height:80px; border:1px solid var(--ac-line); border-radius:10px; background:var(--ac-soft); color:var(--ac-ink); }
+.interview-stat-grid button.selected { border-color:var(--ac-accent); background:var(--ac-selected); }
+.interview-stat-grid strong { font-size:23px; }
+.interview-stat-grid span { font-size:12px; }
+.interview-history-tabs { display:flex; gap:8px; margin:14px 0; }
+.interview-history-tabs button { min-height:40px; padding:8px 12px; border:1px solid var(--ac-line); border-radius:8px; background:var(--ac-surface); color:var(--ac-ink); font-size:13px; }
+.interview-history-tabs button[aria-pressed=true] { background:var(--ac-selected); border-color:var(--ac-accent); font-weight:750; }
+.interview-history-list { display:grid; gap:10px; max-height:500px; overflow:auto; margin-top:14px; }
+.interview-record { display:grid; justify-items:start; gap:8px; padding:14px; border:1px solid var(--ac-line); border-radius:10px; overflow-wrap:anywhere; }
+.interview-record small { color:var(--ac-muted); }
+.interview-record .admin-calendar-actions { margin:4px 0 0; }
+.dark .admin-calendar .request { color:#ffe1a0; background:#48351a; }
+.dark .interview-request-shortcut,.dark .admin-calendar-request-count { color:#ffe1a0; background:#48351a; }
+.dark .interview-request-shortcut strong { background:#64491f; }
+.dark .admin-calendar .history { color:#c0cddd; background:#28364a; }
+.student-portal .booking .booking-workspace { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+.student-portal .booking-history-panel,.student-portal .booking-day-agenda { min-width:0; padding:22px; border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:0 9px 28px rgba(5,46,73,.06); }
+.student-portal .booking-history-toggle { display:flex; justify-content:space-between; align-items:center; gap:14px; min-height:48px; list-style:none; cursor:pointer; }
+.student-portal .booking-history-toggle::-webkit-details-marker { display:none; }
+.student-portal .booking-history-toggle>span { display:grid; gap:8px; }
+.student-portal .booking-history-toggle>span:last-child { display:flex; align-items:center; gap:8px; color:#07567d; }
+.student-portal .booking-history-toggle strong { font-size:20px; }
+.student-portal details[open]>.booking-history-toggle svg { transform:rotate(90deg); }
+.student-portal .booking-history-content { margin-top:18px; }
+.student-portal .booking-history-content .list-filters { flex-wrap:wrap; }
+.student-portal .booking-history-list { display:grid; gap:10px; max-height:500px; overflow:auto; margin-top:14px; }
+.student-portal .booking-history-record { display:grid; justify-items:start; gap:10px; padding:14px; margin:10px 0; border:1px solid var(--line); border-radius:10px; font-size:13px; overflow-wrap:anywhere; }
+.student-portal .booking-history-record small { color:var(--muted); }
+.student-portal .booking-history-record .booking-feedback-open { text-decoration:none; }
+.student-portal .booking-day-agenda { max-height:720px; overflow:auto; }
+.student-portal .booking-calendar-busy { border-left:4px solid #477dc1; background:#edf4ff; }
+.student-portal .booking-history-record.is-requested,.student-portal .booking-interview.is-requested { background:#fff7e5; border-color:#e5ad43; color:#805000; }
+.student-portal .booking-interview.is-requested .booking-interview-status { background:#ffe3a4; color:#805000; }
+.student-portal .booking .booking-date-markers .pending,.student-portal .booking .booking-date-key .pending { background:#d58c16; }
+.student-portal .booking .booking-workspace .booking-time-panel .interview-times { max-height:660px; overflow:auto; }
+.student-portal .booking-history-toggle:focus-visible { outline:2px solid #087f73; outline-offset:4px; }
+@media(max-width:1200px) { .interview-workspace-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }.interview-request-shortcut { justify-self:start; }.admin-interview-workspace { gap:16px; } }
+@media(max-width:950px) { .admin-interview-workspace,.student-portal .booking .booking-workspace { grid-template-columns:1fr; }.admin-calendar-availability .interview-times,.student-portal .booking .booking-workspace .booking-time-panel .interview-times { max-height:460px; } }
+@media(max-width:600px) { .interview-workspace-filters { grid-template-columns:1fr; }.interview-request-shortcut { justify-self:stretch; }.admin-interview-history,.student-portal .booking-history-panel,.student-portal .booking-day-agenda { padding:16px; }.admin-calendar-request-count { font-size:9px; align-self:center; }.interview-history-filters { grid-template-columns:1fr; }.admin-interview-workspace .admin-calendar-day { min-height:86px; } }
