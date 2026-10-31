@@ -107,6 +107,14 @@ export default function StudentPortal({path:requestedPath,navigate,onLogout}:{pa
   const initials=student?.profile_completed_at?(student.full_name??'Student').split(' ').slice(0,2).map((n:string)=>n[0]).join(''):'?';
   const batchName=(id:string)=>enrollments.find(e=>e.batch_id===id)?.name??'Your batch';
   const overview=path==='/student'||!navItems.some(n=>n.path===path);
+  useEffect(()=>{
+    if(student&&student.status!=='active'){
+      viewerRequest.current++;
+      if(viewerBlobUrl.current)URL.revokeObjectURL(viewerBlobUrl.current);
+      viewerBlobUrl.current=null;setViewer(null);setEditingProfile(false);
+    }
+  },[student?.status]);
+  if(student&&student.status!=='active')return <div className="student-portal"><main className="page-content"><section className="panel" role="alert"><LockKeyhole size={28}/><h1>Your access is blocked</h1><p>Your account is {student.status}. Contact admin to restore your access.</p>{error&&<p className="student-error">{error}</p>}<div className="student-card-actions"><button type="button" className="outline-button" onClick={()=>void reload()}>Retry access</button><button type="button" className="primary-button" onClick={onLogout}>Sign out</button></div></section></main></div>;
   return <div className="student-portal"><div className="app-shell">
     <a className="student-skip" href="#student-content">Skip to learning content</a>
     <aside className="sidebar"><div className="brand-lockup"><img src="/lihatech-logo-official.png" alt="LihaTech"/><div><strong>LihaTech</strong><span>LEARN</span></div></div><div className="sidebar-label">LEARNING SPACE</div>

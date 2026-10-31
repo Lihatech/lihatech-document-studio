@@ -4,11 +4,21 @@ insert into public.admin_profiles(id,full_name,email,firebase_uid,role) values
  ('37000000-0000-4000-8000-000000000001','Deletion Admin','deletion-admin@example.invalid','deletion-admin','admin');
 insert into public.students(id,full_name,email,firebase_uid) values
  ('37000000-0000-4000-8000-000000000011','Deletion Student','deletion-student@example.invalid','deletion-student');
+insert into public.students(id,full_name,email,firebase_uid) values
+ ('37000000-0000-4000-8000-000000000012','Multiple Batches','deletion-multiple@example.invalid','deletion-multiple'),
+ ('37000000-0000-4000-8000-000000000013','Revoked History','deletion-history@example.invalid','deletion-history'),
+ ('37000000-0000-4000-8000-000000000014','Unassigned Student','deletion-unassigned@example.invalid','deletion-unassigned');
 insert into public.batches(id,name,code,course_name,start_date,end_date,status) values
  ('37000000-0000-4000-8000-000000000021','Delete batch','DELETE-TEST-A','Test',current_date-5,current_date+45,'active'),
  ('37000000-0000-4000-8000-000000000022','Keep batch','DELETE-TEST-B','Test',current_date-5,current_date+45,'active');
 insert into public.batch_students(student_id,batch_id) values
  ('37000000-0000-4000-8000-000000000011','37000000-0000-4000-8000-000000000021');
+insert into public.batch_students(student_id,batch_id) values
+ ('37000000-0000-4000-8000-000000000012','37000000-0000-4000-8000-000000000021'),
+ ('37000000-0000-4000-8000-000000000012','37000000-0000-4000-8000-000000000022'),
+ ('37000000-0000-4000-8000-000000000013','37000000-0000-4000-8000-000000000021');
+insert into public.batch_students(student_id,batch_id,status,left_at) values
+ ('37000000-0000-4000-8000-000000000013','37000000-0000-4000-8000-000000000022','revoked',now());
 insert into public.learning_materials(id,title,kind,url,status) values
  ('37000000-0000-4000-8000-000000000031','Shared resource','link','https://example.invalid/lesson','published');
 insert into public.learning_materials(id,title,kind,storage_path,status) values
@@ -45,12 +55,27 @@ do $$ begin
  if exists(select 1 from public.batches where id='37000000-0000-4000-8000-000000000021') then raise exception 'Batch still exists'; end if;
  if exists(select 1 from public.batch_students where batch_id='37000000-0000-4000-8000-000000000021') then raise exception 'Enrolment still exists'; end if;
  if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000011') then raise exception 'Student account deleted'; end if;
+ if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000011' and status='suspended') then raise exception 'Last-batch student not suspended'; end if;
+ if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000012' and status='active') then raise exception 'Student with another batch was blocked'; end if;
+ if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000013' and status='suspended') then raise exception 'Revoked history incorrectly kept access'; end if;
+ if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000014' and status='active') then raise exception 'Unrelated student was blocked'; end if;
  if not exists(select 1 from public.batch_materials where batch_id='37000000-0000-4000-8000-000000000022') then raise exception 'Other batch lost material access'; end if;
  if not exists(select 1 from public.mock_interview_bookings where id='37000000-0000-4000-8000-000000000051') then raise exception 'Interview history deleted'; end if;
  if not exists(select 1 from public.mock_interview_slots where id='37000000-0000-4000-8000-000000000041' and batch_id is null) then raise exception 'Interview not detached'; end if;
 end $$;
 set local role anon;
 do $$ declare path text; begin
+ perform pg_temp.deletion_claims('deletion-student');
+ if public.lms_student_id() is not null then raise exception 'Suspended student retains active identity'; end if;
+ if jsonb_array_length(public.lms_student_home()->'bookings')<>0 or jsonb_array_length(public.lms_student_home()->'materials')<>0 then raise exception 'Suspended student can read learning data'; end if;
+ begin
+   perform public.lms_request_document('{}'::jsonb);
+   raise exception 'Suspended student requested a document';
+ exception when insufficient_privilege then null; end;
+ begin
+   perform public.lms_save_student_profile('{"full_name":"Changed Name"}'::jsonb);
+   raise exception 'Suspended student updated their profile';
+ exception when insufficient_privilege then null; end;
  perform pg_temp.deletion_claims('deletion-admin');
  path:=public.lms_admin_delete_material('37000000-0000-4000-8000-000000000031');
  if path is not null then raise exception 'Web link returned a storage path'; end if;

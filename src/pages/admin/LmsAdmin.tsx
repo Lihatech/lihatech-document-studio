@@ -63,7 +63,7 @@ export default function LmsAdmin({module:requestedModule='overview',navigate}:{m
     await action(()=>removeAssignment('students',{id:student.id}));
   }
   async function deleteBatch(row:Row){
-    if(busy||!await confirmAction(`Delete “${row.name}”? This permanently removes the batch, its enrolments, material assignments and batch schedule. Student accounts, library documents and interviews are kept. This cannot be undone.`,'Delete batch'))return;
+    if(busy||!await confirmAction(`Delete “${row.name}”? This permanently removes the batch, its enrolments, material assignments and batch schedule. Students without another batch assignment will have their access blocked. Their records, library documents and interviews are kept. This cannot be undone.`,'Delete batch'))return;
     await action(async()=>{await rpc('lms_admin_delete_batch',{p_batch:row.id});setBatchId(current=>current===row.id?null:current);},'Batch deleted.');
   }
   async function save(values:Row){
