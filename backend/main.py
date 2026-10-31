@@ -245,7 +245,7 @@ def require_active_student(user: Annotated[dict, Depends(verify_firebase_user)])
     if user.get("email_verified") is not True:
         raise HTTPException(status_code=403, detail="A verified Google account is required.")
     rows = (supabase.table("students").select("id,email,status,firebase_uid,full_name")
-            .eq("firebase_uid", user["uid"]).limit(1).execute().data)
+            .eq("firebase_uid", user["uid"]).is_("trashed_at", "null").limit(1).execute().data)
     if not rows or rows[0]["status"] != "active":
         raise HTTPException(status_code=403, detail="Active student access is required.")
     return rows[0]

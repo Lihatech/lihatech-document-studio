@@ -52,8 +52,9 @@ do $$ begin
 end $$;
 reset role;
 do $$ begin
- if exists(select 1 from public.batches where id='37000000-0000-4000-8000-000000000021') then raise exception 'Batch still exists'; end if;
- if exists(select 1 from public.batch_students where batch_id='37000000-0000-4000-8000-000000000021') then raise exception 'Enrolment still exists'; end if;
+ if not exists(select 1 from public.batches where id='37000000-0000-4000-8000-000000000021' and trashed_at is not null and status='cancelled') then raise exception 'Batch not moved to Trash'; end if;
+ if not exists(select 1 from public.batch_students where batch_id='37000000-0000-4000-8000-000000000021') then raise exception 'Enrolments not preserved for Undo'; end if;
+ if not exists(select 1 from public.lms_trash where entity_id='37000000-0000-4000-8000-000000000021' and kind='batch') then raise exception 'Missing batch Trash entry'; end if;
  if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000011') then raise exception 'Student account deleted'; end if;
  if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000011' and status='suspended') then raise exception 'Last-batch student not suspended'; end if;
  if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000012' and status='active') then raise exception 'Student with another batch was blocked'; end if;
@@ -61,7 +62,7 @@ do $$ begin
  if not exists(select 1 from public.students where id='37000000-0000-4000-8000-000000000014' and status='active') then raise exception 'Unrelated student was blocked'; end if;
  if not exists(select 1 from public.batch_materials where batch_id='37000000-0000-4000-8000-000000000022') then raise exception 'Other batch lost material access'; end if;
  if not exists(select 1 from public.mock_interview_bookings where id='37000000-0000-4000-8000-000000000051') then raise exception 'Interview history deleted'; end if;
- if not exists(select 1 from public.mock_interview_slots where id='37000000-0000-4000-8000-000000000041' and batch_id is null) then raise exception 'Interview not detached'; end if;
+ if not exists(select 1 from public.mock_interview_slots where id='37000000-0000-4000-8000-000000000041' and batch_id='37000000-0000-4000-8000-000000000021') then raise exception 'Interview association not preserved for Undo'; end if;
 end $$;
 set local role anon;
 do $$ declare path text; begin

@@ -29,7 +29,9 @@ export async function listRows(table: LmsTable): Promise<Row[]> {
   const rows: Row[] = [];
   const ordering = table === 'batch_students' || table === 'batch_materials' ? 'batch_id' : 'id';
   for (let offset = 0; ; offset += 500) {
-    let query = supabase.from(table).select('*').order(ordering);
+    let query = supabase.from(table).select(table==='batch_students'?'*,batch:batches!inner(trashed_at),student:students!inner(trashed_at)':'*').order(ordering);
+    if(table==='students'||table==='batches')query=query.is('trashed_at',null);
+    if(table==='batch_students')query=query.is('batch.trashed_at',null).is('student.trashed_at',null);
     if (table === 'batch_students') query = query.order('student_id');
     if (table === 'batch_materials') query = query.order('material_id');
     const { data, error } = await query.range(offset, offset + 499);

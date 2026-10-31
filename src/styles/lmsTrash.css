@@ -1,0 +1,14 @@
+.unassigned-students summary { display:flex; justify-content:space-between; align-items:center; gap:16px; list-style:none; cursor:pointer; min-height:44px; }
+.unassigned-students summary::-webkit-details-marker { display:none; }
+.unassigned-students summary>span { display:grid; gap:5px; }
+.unassigned-students summary small { color:#63778c; font-size:12px; }
+.unassigned-students details[open]>summary>svg { transform:rotate(180deg); }
+.unassigned-students summary:focus-visible { outline:2px solid #078edb; outline-offset:4px; }
+.unassigned-student-list,.lms-trash-list { max-height:480px; overflow:auto; scrollbar-gutter:stable; }
+.lms-trash-list { display:grid; gap:10px; }
+.lms-trash-list .lms-record { margin:0; }
+.lms-workspace .trash-students-choice { display:flex; align-items:flex-start; gap:12px; padding:16px; border:1px solid #dbe3eb; border-radius:10px; }
+.lms-workspace .trash-students-choice input { width:20px; min-height:20px; height:20px; margin:0; flex:none; }
+.lms-page-head .lms-trash-open { margin:14px 0; }
+.lms-trash-undo { display:inline-flex; margin-left:12px; border:0; background:transparent; color:#07547e; text-decoration:underline; cursor:pointer; font-weight:700; }
+@media(max-width:600px){.lms-trash-list .lms-record,.unassigned-student-list .lms-record { flex-wrap:wrap; gap:12px; }.unassigned-students .lms-toolbar>button { width:100%; }}

@@ -35,6 +35,9 @@ class Table:
     def eq(self, field, value):
         self.filters.append((field, value))
         return self
+    def is_(self, field, value):
+        self.filters.append((field, None if value == "null" else value))
+        return self
     def update(self, values):
         self.pending = values
         return self
@@ -73,6 +76,16 @@ class MockApproval(unittest.TestCase):
     def tearDown(self):
         main.app.dependency_overrides.clear()
         patch.stopall()
+
+    def test_trashed_student_cannot_use_interview_api(self):
+        student = self.students.rows[0]
+        student["firebase_uid"] = "student-uid"
+        user = {"uid": "student-uid", "email_verified": True}
+        self.assertEqual(main.require_active_student(user)["id"], STUDENT_ID)
+        student["trashed_at"] = "2026-10-31T00:00:00Z"
+        with self.assertRaises(main.HTTPException) as denied:
+            main.require_active_student(user)
+        self.assertEqual(denied.exception.status_code, 403)
 
     def test_approval_saves_auto_generated_meet(self):
         response = self.client.post(f"/api/admin/mocks/{BOOKING_ID}/approve")

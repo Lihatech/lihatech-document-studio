@@ -30,6 +30,12 @@ Private uploads are limited to 4 MB to fit the serverless download response limi
 
 ## Deployment
 
+For recoverable batch/student deletion, apply `supabase/migrations/20261109000000_batch_student_trash.sql` before deploying the matching frontend/API. It adds `trashed_at`, admin Trash/restore RPCs and a Supabase `pg_cron` cleanup job. Restore is available for exactly five days; expired records are purged every 30 minutes (and when an admin opens Trash). Confirm the `lms-trash-five-day-cleanup` job is present in Supabase Cron after applying it. Previously permanently deleted records cannot be recovered by this migration.
+
+The students-without-batch card starts collapsed and supports individual management and bulk deletion. Batch deletion can also trash students who have no other batch; students assigned elsewhere are kept. Deleting only a batch blocks students losing their final assignment but keeps their accounts. Trash preserves IDs, memberships and history until expiry. Restoring a batch also restores students moved with it; individually restored students without a current batch remain suspended until an admin restores batch access.
+
+Run the SQL regression in `supabase/tests/batch_and_material_deletion.sql` on a test database. The isolated PostgreSQL checks in `tests/lmsTrash.database.test.mjs` require test-only `@electric-sql/pglite`: install it outside the app, set `LMS_TEST_PGLITE_URL` to its module file URL, and run `node --test tests/lmsTrash.database.test.mjs`. These cover actual migration functions/triggers, permissions, restore, expiry and relational cleanup; they do not exercise Supabase Cron.
+
 Apply the LMS migrations in order through `supabase/migrations/20261017000000_mock_requests_calendar.sql` before deploying this frontend. The first migration intentionally fails if existing student emails are duplicated; review duplicates rather than deleting user data. These migrations do not seed records or alter existing document payloads.
 
 For student document requests, also apply `supabase/migrations/20261020000000_student_document_requests.sql`. The student form and admin queue call the new RPCs; they will show a missing-function error until this migration is applied. Requests store the student's supplied details and review status, while finished certificates and letters remain in the existing Document Studio registry.
