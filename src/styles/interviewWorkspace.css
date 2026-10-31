@@ -2,6 +2,17 @@
 .admin-interview-workspace { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:22px; align-items:start; }
 .admin-interview-workspace>.admin-calendar-month { grid-column:1; grid-row:1; }
 .admin-interview-workspace>.admin-calendar-priority-agenda { grid-column:2; grid-row:1; }
+.admin-calendar .admin-calendar-priority-agenda { display:flex; flex-direction:column; height:min(740px,80dvh); min-height:320px; overflow:hidden; }
+.admin-calendar-priority-agenda>.admin-calendar-section-head { flex:none; }
+.admin-agenda-counts { flex:none; margin:12px 0; color:var(--ac-muted); font-size:12px; }
+.admin-agenda-scroll { flex:1; min-height:0; overflow-y:auto; scrollbar-gutter:stable; overscroll-behavior:contain; padding-right:6px; scrollbar-width:thin; scrollbar-color:#8398ad var(--ac-soft); }
+.admin-agenda-scroll::-webkit-scrollbar { width:8px; }
+.admin-agenda-scroll::-webkit-scrollbar-thumb { background:#8398ad; border:2px solid var(--ac-surface); border-radius:8px; }
+.admin-agenda-scroll::-webkit-scrollbar-track { background:var(--ac-soft); }
+.admin-calendar .admin-agenda-scroll .admin-calendar-day-layout { margin-top:0; }
+.admin-agenda-scroll .admin-calendar-column-title { position:sticky; top:0; z-index:1; padding:8px 0; background:var(--ac-surface); }
+.admin-agenda-scroll-footer { flex:none; display:flex; align-items:center; justify-content:center; min-height:44px; border-top:1px solid var(--ac-line); margin-top:12px; color:var(--ac-muted); font-size:12px; }
+.admin-agenda-scroll-footer button { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:44px; padding:8px; border:0; border-radius:8px; color:var(--ac-accent); background:var(--ac-selected); font-weight:700; }
 .interview-toolbar-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
 .interview-history-launcher button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 14px; border:1px solid var(--ac-line); border-radius:9px; background:var(--ac-surface); color:var(--ac-accent); font-size:13px; font-weight:700; }
 .interview-history-modal { display:block; }

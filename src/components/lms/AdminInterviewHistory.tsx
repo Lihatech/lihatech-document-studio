@@ -9,8 +9,9 @@ export default function AdminInterviewHistory({bookings,slots,students,batches,m
   const [view,setView]=useState<'interviews'|'students'>('interviews'),[query,setQuery]=useState('');
   const [from,setFrom]=useState(''),[to,setTo]=useState(''),[status,setStatus]=useState('all'),[feedback,setFeedback]=useState('all');
   const [participation,setParticipation]=useState('all'),[open,setOpen]=useState(false);
+  const [historyBatch,setHistoryBatch]=useState(batch),[historyStudent,setHistoryStudent]=useState(student);
   const openAction=(handler:(row:Row)=>void,row:Row)=>{setOpen(false);handler(row);};
-  const roster=interviewRoster(students,members,batch,student),ids=new Set(roster.map(row=>row.id));
+  const roster=interviewRoster(students,members,historyBatch,historyStudent),ids=new Set(roster.map(row=>row.id));
   const records=bookings.flatMap<Row>(row=>{const slot=slots.find(slot=>slot.id===row.slot_id);return slot?[{...slot,...row,starts_at:slot.starts_at,ends_at:slot.ends_at}]:[];})
     .filter(row=>ids.has(row.student_id)&&(!from||interviewDay(row.starts_at)>=from)&&(!to||interviewDay(row.starts_at)<=to));
   const stats=interviewSummary(roster,records),now=Date.now();
@@ -24,9 +25,13 @@ export default function AdminInterviewHistory({bookings,slots,students,batches,m
   });
   const choose=(value:string)=>{setView('students');setParticipation(value);};
   return <div className="interview-history-launcher">
-    <button type="button" className="studio-secondary" onClick={()=>setOpen(true)}><History size={18}/> Interview history &amp; analysis</button>
+    <button type="button" className="studio-secondary" onClick={()=>{setHistoryBatch(batch);setHistoryStudent(student);setOpen(true);}}><History size={18}/> Interview history &amp; analysis</button>
     {open&&<Modal title="Interview history & batch analysis" wide busy={busy} onClose={()=>setOpen(false)}><div className="admin-calendar interview-history-modal">
-      <p className="interview-history-note">{batch==='all'?'All registered students':batches.find(row=>row.id===batch)?.name} · Current batch assignments; unique students, not interview totals.</p>
+      <p className="interview-history-note">{historyBatch==='all'?'All registered students':batches.find(row=>row.id===historyBatch)?.name} · Current batch assignments; unique students, not interview totals.</p>
+      <div className="interview-history-filters">
+        <label>Batch<select aria-label="History batch" value={historyBatch} onChange={event=>{setHistoryBatch(event.target.value);setHistoryStudent('all');}}><option value="all">All batches</option>{batches.map(row=><option value={row.id} key={row.id}>{row.name} · {row.code}</option>)}</select></label>
+        <label>Student<select aria-label="History student" value={historyStudent} onChange={event=>setHistoryStudent(event.target.value)}><option value="all">All students</option>{interviewRoster(students,members,historyBatch).map(row=><option value={row.id} key={row.id}>{name(row)} · {row.student_code}</option>)}</select></label>
+      </div>
       <div className="interview-history-filters">
         <label>From date<input type="date" value={from} max={to||undefined} onChange={event=>setFrom(event.target.value)}/></label>
         <label>To date<input type="date" value={to} min={from||undefined} onChange={event=>setTo(event.target.value)}/></label>
